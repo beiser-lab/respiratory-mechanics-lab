@@ -18,7 +18,7 @@
 // DLCO (Roughton & Forster 1957):  1/DLCO = 1/DM + 1/(theta * Vc), theta proportional to Hb.
 // Hb adjustment (ERS/ATS 2017, adult male): DLCOcorr = DLCO * (10.22 + Hb) / (1.7 * Hb).
 
-import { analyze, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=7';
+import { analyze, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=8';
 
 export const PFT_DEFAULTS = Object.freeze({
   ...STATIC_DEFAULTS,
@@ -127,8 +127,8 @@ export const PFT_PRESETS = {
   emphysema: preset('Emphysema (Small Group 1 case: 72-year-old former smoker)', { lungCompliance: 2.5, airwayCollapsibility: 60, airwayResistance: 1.5, membrane: 0.5, capillaryVolume: 0.7 }),
   asthma: preset('Asthma, during an exacerbation', { airwayResistance: 2.8, airwayCollapsibility: 8, capillaryVolume: 1.2 }, { bronchodilator: { airwayResistance: 1.2, airwayCollapsibility: 1.2 } }),
   ild: preset('Interstitial lung disease (pulmonary fibrosis)', { lungCompliance: 0.35, membrane: 0.45, capillaryVolume: 0.8 }),
-  obesity: preset('Obesity', { chestWallLoad: 7, capillaryVolume: 1.1 }),
-  neuromuscular: preset('Respiratory muscle weakness (Small Group 4 case)', { muscleStrength: 0.38 }, { supine: { muscleStrength: 0.3, chestWallLoad: 2 } }),
+  obesity: preset('Obesity', { chestWallLoad: 6, chestWallCompliance: 0.4, capillaryVolume: 1.1 }),
+  neuromuscular: preset('Respiratory muscle weakness (Small Group 4 case)', { muscleStrength: 0.35 }, { supine: { muscleStrength: 0.28, chestWallLoad: 2 } }),
   upperAirway: preset('Fixed upper airway obstruction (e.g., tracheal stenosis)', { upperAirwayLimit: 3 }),
   anemia: preset('Anemia (Hb 8 g/dL), lungs normal', { hemoglobin: 8 }),
 };

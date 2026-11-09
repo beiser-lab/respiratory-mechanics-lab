@@ -35,6 +35,8 @@ test('restriction: ILD, obesity, muscle weakness', () => {
   const i = run('ild'), o = run('obesity'), n = run('neuromuscular'), s = run('neuromuscular', 'supine');
   assert.ok(pct(i, 'tlc') < 80 && i.ratio > PREDICTED.ratio && pct(i, 'dlco') < 70, 'ILD');
   assert.ok(pct(o, 'erv') < 65 && pct(o, 'dlco') >= 95, 'obesity: low ERV, normal DLCO');
+  assert.ok(pct(o, 'tlc') < 80 && pct(o, 'frc') < 80 && pct(o, 'rv') < 100, 'obesity: TLC, FRC, RV all fall (Small Group 4 key)');
+  assert.ok(pct(i, 'rv') < 100, 'ILD: RV falls');
   assert.ok(pct(n, 'tlc') < 90 && Math.abs(pct(n, 'frc') - 100) < 2 && pct(n, 'rv') > 110, 'weakness step-up pattern');
   assert.ok(Math.abs(pct(n, 'dlco') - 100) < 1, 'weakness: normal DLCO');
   assert.ok(s.tlc < n.tlc && s.fvc < n.fvc, 'supine worse than upright');

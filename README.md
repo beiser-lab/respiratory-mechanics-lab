@@ -18,10 +18,10 @@ The lung and chest wall share one volume, so at each volume their recoil pressur
 
 These are compliances in series. Adding the two volumes at the same pressure (the parallel rule) gives the wrong combined curve.
 
-- Lung: Salazar–Knowles exponential, V = Vmax − (Vmax − V0)·exp(−kP), with V0 1.5 L and Vmax 6.4 L. Compliance changes rotate the curve about V0.
-- Chest wall: logistic curve resting at 4.75 L, 72% VC (Rahn et al. 1946), with −5 cmH2O at FRC and about −20 cmH2O at RV. Compliance changes pivot it at 1.5 L (near RV), so a stiffer chest wall lowers its resting volume and FRC. Inward load (obesity, ascites, pregnancy) shifts the curve to the right.
+- Lung: Salazar–Knowles exponential, V = Vmax − (Vmax − V0)·exp(−kP), with V0 (minimal air) 1.25 L, below RV, and Vmax 6.27 L. Compliance changes rotate the curve about V0.
+- Chest wall: logistic curve resting at 4.75 L, 72% VC (Rahn et al. 1946), with −5 cmH2O at FRC and −14 cmH2O at RV. Compliance changes pivot it at 1.5 L (near RV), so a stiffer chest wall lowers its resting volume and FRC. Inward load (obesity, ascites, pregnancy) shifts the curve to the right.
 - TLC and RV are the volumes where maximal inspiratory and expiratory muscle effort balance the system's recoil, calibrated to 6.0 L and 1.5 L.
-- Healthy values: FRC 3.0 L, CL 0.25, Ccw 0.30, Crs 0.14 L/cmH2O.
+- Healthy values: FRC 3.0 L, CL 0.28, Ccw 0.31, Crs 0.15 L/cmH2O.
 
 On the statics page the model has no airway closure, so RV does not rise in emphysema there.
 
