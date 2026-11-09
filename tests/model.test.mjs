@@ -33,3 +33,16 @@ test('conditions move volumes in the taught direction', () => {
   const n = A('neuromuscular');
   near(n.frc, h.frc, 1e-6, 'weakness leaves FRC'); assert.ok(n.tlc < h.tlc && n.rv > h.rv, 'weakness: TLC down, RV up');
 });
+
+import { simulateBreath, PRESETS as BREATH_PRESETS } from '../dist/model.js';
+test('one breath: Ppl falls, PA goes negative, flow stops at the new volume', () => {
+  const b = simulateBreath(BREATH_PRESETS.normal), s = b.samples;
+  assert.ok(Math.abs(s[0].ppl + 5) < 0.1 && Math.abs(s[0].pa) < 1e-9, 'starts at FRC: Ppl -5, PA 0');
+  const endInsp = s.find(x => x.t >= 2.4 - 1e-9);
+  assert.ok(Math.abs(endInsp.ppl + 7) < 0.3, `end-inspiratory Ppl about -7 (${endInsp.ppl})`);
+  assert.ok(Math.min(...s.map(x => x.pa)) < -1 && Math.abs(endInsp.pa) < 0.15, 'PA dips below zero, then returns toward zero');
+  for (const x of s) assert.ok(Math.abs(x.pa - (x.ppl + x.pel)) < 1e-9, 'PA = Ppl + Pel');
+  assert.ok(Math.abs(b.vPeak - b.frc - 0.5) < 0.02 && Math.abs(s.at(-1).volume - b.frc) < 0.02, 'tidal breath of 0.5 L returns to FRC');
+  const fib = simulateBreath(BREATH_PRESETS.fibrosis), emph = simulateBreath(BREATH_PRESETS.emphysema);
+  assert.ok(fib.work > 1.3 * b.work && emph.work < b.work, 'stiffer lung, more elastic work for the same breath');
+});
