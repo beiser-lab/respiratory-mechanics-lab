@@ -19,9 +19,9 @@ The lung and chest wall share one volume, so at each volume their recoil pressur
 These are compliances in series. Adding the two volumes at the same pressure (the parallel rule) gives the wrong combined curve.
 
 - Lung: Salazar–Knowles exponential, V = Vmax − (Vmax − V0)·exp(−kP), with V0 1.5 L and Vmax 6.4 L. Compliance changes rotate the curve about V0.
-- Chest wall: logistic curve with a resting volume of 4.0 L. Compliance changes pivot it at 1.5 L (near RV), so a stiffer chest wall lowers its resting volume and FRC. Inward load (obesity, ascites, pregnancy) shifts the curve to the right.
+- Chest wall: logistic curve resting at 4.75 L, 72% VC (Rahn et al. 1946), with −5 cmH2O at FRC and about −20 cmH2O at RV. Compliance changes pivot it at 1.5 L (near RV), so a stiffer chest wall lowers its resting volume and FRC. Inward load (obesity, ascites, pregnancy) shifts the curve to the right.
 - TLC and RV are the volumes where maximal inspiratory and expiratory muscle effort balance the system's recoil, calibrated to 6.0 L and 1.5 L.
-- Healthy values: FRC 3.0 L, CL 0.25, Ccw 0.18, Crs 0.10 L/cmH2O.
+- Healthy values: FRC 3.0 L, CL 0.25, Ccw 0.30, Crs 0.14 L/cmH2O.
 
 The model is static, so it has no airway closure. RV does not rise in emphysema here; that belongs in the planned PFT module.
 
@@ -42,3 +42,9 @@ Publish updates after tests pass:
 git push origin main
 git subtree push --prefix dist origin gh-pages
 ```
+
+## References
+
+1. Rahn H, Otis AB, Chadwick LE, Fenn WO. The pressure-volume diagram of the thorax and lung. Am J Physiol. 1946;146(2):161–178. doi:10.1152/ajplegacy.1946.146.2.161
+2. Chatburn RL, Daoud EG. Ventilation. In: Kacmarek RM, Stoller JK, Heuer AJ, eds. Egan's Fundamentals of Respiratory Care. 10th ed. Mosby; 2013. Figure 10-7, modified from Beachey W. Respiratory Care Anatomy and Physiology. 2nd ed. Mosby; 2007.
+3. Yartsev A. Elastic properties of the respiratory system. Deranged Physiology. https://derangedphysiology.com/main/cicm-primary-exam/respiratory-system/Chapter-032/elastic-properties-respiratory-system

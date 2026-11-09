@@ -8,7 +8,8 @@ test('healthy baseline matches teaching values', () => {
   const a = analyze(DEFAULT_SETTINGS);
   near(a.frc, 3.0, 0.02, 'FRC'); near(a.tlc, 6.0, 1e-3, 'TLC'); near(a.rv, 1.5, 1e-3, 'RV');
   near(a.lungRecoilAtFrc, -a.chestWallRecoilAtFrc, 1e-6, 'recoils balance at FRC');
-  near(a.systemCompliance, 0.10, 0.01, 'Crs');
+  near(a.systemCompliance, 0.136, 0.01, 'Crs');
+  near(a.chestWallRestingVolume, 4.75, 0.01, 'chest wall rests at 72% VC (Rahn 1946)');
 });
 
 test('pressures add at equal volume and compliances add in series', () => {

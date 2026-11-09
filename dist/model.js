@@ -14,10 +14,12 @@ export const NORMAL = Object.freeze({
   lungVmax: 6.4,    // asymptotic maximum lung volume
   lungK: 0.0735,    // shape constant, 1/cmH2O
   // Chest wall (logistic): V = Vlow + (Vhigh - Vlow) / (1 + exp(-(Pcw - Pc) / b)).
-  cwVlow: 1.2,
+  // Fit so the chest wall rests at 72% VC (4.75 L; Rahn et al. 1946), recoils outward
+  // -5 cmH2O at FRC (3.0 L), and about -20 cmH2O at RV (1.5 L).
+  cwVlow: 1.4614,
   cwVhigh: 7.0,
-  cwPc: 0.473,      // cmH2O
-  cwB: 6.85,        // cmH2O
+  cwPc: -1.4215,    // cmH2O
+  cwB: 3.7454,      // cmH2O
   // Maximal relaxation-pressure equivalents of the respiratory muscles at 100% strength.
   // Calibrated so the healthy model gives TLC 6.0 L and RV 1.5 L.
   inspMax: null,
@@ -141,7 +143,7 @@ export const PRESETS = {
   emphysema: preset('Emphysema: lung compliance ↑', { lungCompliance: 2 }),
   fibrosis: preset('Pulmonary fibrosis: lung compliance ↓', { lungCompliance: 0.5 }),
   obesity: preset('Obesity: inward load on chest wall', { chestWallLoad: 5 }),
-  kyphoscoliosis: preset('Kyphoscoliosis: chest wall compliance ↓', { chestWallCompliance: 0.5 }),
+  kyphoscoliosis: preset('Kyphoscoliosis: chest wall compliance ↓', { chestWallCompliance: 0.6 }),
   neuromuscular: preset('Respiratory muscle weakness', { muscleStrength: 0.5 }),
 };
 
