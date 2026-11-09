@@ -21,3 +21,9 @@
 .eq{font-family:"STIX Two Text","Times New Roman",serif;font-size:18px !important;text-align:center;margin:14px 0}
 #pv{cursor:crosshair;touch-action:none}
 .refs{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}.refs summary{font-size:11px;font-weight:600;color:var(--accent);cursor:pointer}.refs ol{font-size:11px;line-height:1.6;color:#4d4d4d;padding-left:20px;margin:10px 0 0}.refs li{margin-bottom:6px}.refs a{color:#800000;text-underline-offset:2px}
+.check-row{display:flex !important;align-items:center;gap:8px;font-weight:500 !important;margin-bottom:8px !important}.check-row input{width:auto !important;display:inline !important;margin:0 !important;accent-color:var(--accent)}
+.group{border-top:1px solid var(--border);padding-top:10px;margin-top:6px}.group summary{font-size:11px;font-weight:700;color:var(--accent);cursor:pointer;margin-bottom:12px;letter-spacing:.3px}
+a.tab{text-decoration:none}a.tab:hover{border-color:#737373}
+.report table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}.report th,.report td{padding:5px 8px;text-align:right;border-bottom:1px solid #f0f0f0}.report td:first-child,.report th:first-child{text-align:left}.report thead th{font-size:11px;color:var(--muted);border-bottom:1px solid var(--border)}.report tr.section th{text-align:left;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--accent);padding-top:12px}.report tr.flag td{color:#800000;font-weight:650}.report tr.flag td:first-child::after{content:" *"}
+.results>.card+.card{margin-top:18px}
+.report{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}@media(max-width:1050px){.report{grid-template-columns:1fr}}
