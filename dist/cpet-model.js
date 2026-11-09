@@ -126,7 +126,7 @@ export function simulate(settings = {}) {
 const preset = (label, o, extra = {}) => ({ label, settings: { ...CPET_DEFAULTS, ...o }, ...extra });
 export const CPET_PRESETS = {
   normal: preset('Healthy 40-year-old man', {}),
-  professor: preset("Male physiology professor", { age: 44, weight: 82, rampRate: 34, strokeVolume: 0.757, fitness: 1.05, fev1: 3.95, vc: 4.9, effort: 1.2 },
+  professor: preset('Male physiology professor', { age: 44, weight: 82, rampRate: 34, strokeVolume: 0.757, fitness: 1.05, fev1: 3.95, vc: 4.9, effort: 1.2 },
     { actual: { rest: { vo2: 395, vco2: 356, rer: 0.90, ve: 11.2, vt: 0.87, rr: 13, veVo2: 28, veVco2: 31 }, at: { work: 87, vo2: 1126, vco2: 1121, rer: 1.00, ve: 30.3, vt: 1.77, rr: 17, veVo2: 27, veVco2: 27 }, peak: { work: 214, vo2: 2126, vco2: 3080, rer: 1.45, ve: 100.8, vt: 2.41, rr: 42, veVo2: 47, veVco2: 33 }, pred: { vo2: 2805, work: 216, ve: 158, hr: 176 } } }),
   athlete: preset('Endurance athlete', { strokeVolume: 1.4, fitness: 1.08, restingHeartRate: 50, fev1: 4.4, vc: 5.4, desaturation: 3 }),
   deconditioned: preset('Deconditioned (sedentary, otherwise healthy)', { strokeVolume: 0.85, fitness: 0.8, restingHeartRate: 85 }),

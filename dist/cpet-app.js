@@ -1,11 +1,11 @@
-import { simulate, interpretCPET, CPET_PRESETS, CPET_DEFAULTS, predicted } from './cpet-model.js?v=10';
+import { simulate, interpretCPET, CPET_PRESETS, CPET_DEFAULTS, predicted } from './cpet-model.js?v=11';
 
 const $ = id => document.getElementById(id);
 const colors = { o2: '#800000', co2: '#155f83', hr: '#a65e00', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', work: 'rgba(128,128,128,0.10)' };
 
 const QUESTIONS = {
   normal: ['What stops a healthy person?', 'At peak exercise, is heart rate near its predicted maximum? How much breathing reserve is left? What does that tell you about which system limits exercise in health?'],
-  professor: ["the male physiology professor case", 'Peak VO2 is only about 76% of predicted, yet peak work is near predicted and breathing reserve is large. Is this test normal? Why does a fast ramp (34 W/min) lower the measured peak VO2? Compare the simulation with his actual numbers below the report.'],
+  professor: ['Male physiology professor', 'Peak VO2 is only about 76% of predicted, yet peak work is near predicted and breathing reserve is large. Is this test normal? Why does a fast ramp (34 W/min) lower the measured peak VO2? Compare the simulation with his actual numbers below the report.'],
   athlete: ['A bigger engine', 'Peak VO2 is far above predicted, but peak heart rate is about the same as the healthy subject. Which part of the Fick equation changed with training? Look at the O2 pulse. Why can SpO2 fall a few points in an elite athlete with normal lungs?'],
   copdHf: ['Would a new heart help?', 'This patient has both COPD and heart failure and is being evaluated for heart transplant. Which ceiling does each system set? If the heart were replaced, what would stop exercise next?'],
   deconditioned: ['Out of shape', 'Peak VO2 and the anaerobic threshold are low, yet heart rate reaches its maximum and breathing reserve is large. Why does heart rate climb so fast? What would training change?'],
@@ -116,7 +116,7 @@ function renderReport() {
   if (actual && matchPreset() === presetKey && done) {
     const cell = (o, k, dp) => o && o[k] != null ? o[k].toFixed(dp) : '–';
     const rowsA = [['work', 'Work rate (W)', 0], ['vo2', 'V̇O₂ (mL/min)', 0], ['vco2', 'V̇CO₂ (mL/min)', 0], ['rer', 'RER', 2], ['ve', 'V̇E (L/min)', 1], ['vt', 'V<sub>T</sub> (L)', 2], ['rr', 'Breathing rate (/min)', 0], ['veVo2', 'V̇E/V̇O₂', 0], ['veVco2', 'V̇E/V̇CO₂', 0]];
-    html += `<h3 class="actual-head">The professor's actual test</h3><table class="actual"><thead><tr><th></th><th>Rest</th><th>AT</th><th>Peak</th><th>Pred</th></tr></thead><tbody>` + rowsA.map(([k, l, dp]) => `<tr><td>${l}</td><td>${cell(actual.rest, k, dp)}</td><td>${cell(actual.at, k, dp)}</td><td>${cell(actual.peak, k, dp)}</td><td>${cell(actual.pred, k, dp)}</td></tr>`).join('') + `</tbody></table><p class="hint">Heart rate was not recorded. His conclusion: average fitness, cardiac limited; the fast ramp and extra anaerobic work held peak V̇O₂ down. His peak RER (1.45) is higher than the model's because he sprinted at the end.</p>`;
+    html += `<h3 class="actual-head">The professor's actual test</h3><table class="actual"><thead><tr><th></th><th>Rest</th><th>AT</th><th>Peak</th><th>Pred</th></tr></thead><tbody>` + rowsA.map(([k, l, dp]) => `<tr><td>${l}</td><td>${cell(actual.rest, k, dp)}</td><td>${cell(actual.at, k, dp)}</td><td>${cell(actual.peak, k, dp)}</td><td>${cell(actual.pred, k, dp)}</td></tr>`).join('') + `</tbody></table><p class="hint">Heart rate was not recorded. The professor's own read: average fitness, cardiac limited; the fast ramp and extra anaerobic work held peak V̇O₂ down. His peak RER (1.45) is higher than the model's because he sprinted at the end.</p>`;
   }
   $('report').innerHTML = html;
 }

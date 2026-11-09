@@ -39,7 +39,7 @@ test('each patient shows its limitation', () => {
   const i = run('ild'); assert.ok(i.summary.spo2Drop >= 4 && i.peak.rr > 45, 'ILD: desaturation, rapid shallow breathing');
 });
 
-test("the male physiology professor case: fast ramp lowers peak VO2 relative to work (lecture slides 35-38)", () => {
+test("Male physiology professor: fast ramp lowers peak VO2 relative to work (lecture slides 35-38)", () => {
   const r = run('professor'), s = r.summary;
   assert.ok(s.vo2PeakPct > 70 && s.vo2PeakPct < 80, `peak VO2 ${s.vo2PeakPct}% (his 76%)`);
   assert.ok(s.workPct >= 90, `work ${s.workPct}% (his 99%)`);
