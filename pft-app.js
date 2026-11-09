@@ -1,5 +1,5 @@
-import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=7';
-import { interpret } from './pft-interpret.js?v=7';
+import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=8';
+import { interpret } from './pft-interpret.js?v=8';
 
 const $ = id => document.getElementById(id);
 const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666' };
@@ -9,7 +9,7 @@ const QUESTIONS = {
   emphysema: ['72-year-old former smoker', 'Is FEV1/FVC below 0.70? Rank TLC, FRC, and RV by how far each rises. Why does RV rise the most? Why is DLCO low here but not in asthma? Look for the scoop on the flow-volume loop and the long tail on the volume-time curve.'],
   asthma: ['Obstruction that reverses', 'Check the box for after bronchodilator. How much does FEV1 change, in liters and in percent? Why is DLCO normal or high even though spirometry looks like emphysema?'],
   ild: ['Small, stiff lungs', 'TLC and FVC fall, but FEV1/FVC is normal or high. Use the flow-volume loop to explain why: at any given lung volume, is flow higher or lower than normal? What does the low DLCO add?'],
-  obesity: ['A load on the chest wall', 'Which volume falls the most? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
+  obesity: ['A load on the chest wall', 'TLC, FRC, and RV all fall, but one volume falls the most. Which is it, and why? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
   neuromuscular: ['Small Group 4: weak muscles', 'Compare TLC, FRC, and RV as percent predicted. What is the step-up pattern, and why does FRC stay normal? Now check tested supine. What changes, and why?'],
   upperAirway: ['The next room over', 'Both limbs of the flow-volume loop are cut off flat. Where along the airway must the obstruction be for flow to be capped in both directions? Why is DLCO normal?'],
   anemia: ['Normal lungs, low DLCO', 'Spirometry and lung volumes are normal. Why is the uncorrected DLCO low, and why does the hemoglobin-corrected value come back to normal?'],

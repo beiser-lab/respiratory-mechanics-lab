@@ -10,16 +10,19 @@
 
 export const NORMAL = Object.freeze({
   // Lung (Salazar-Knowles exponential): V = Vmax - (Vmax - V0) * exp(-k * PL), for PL >= 0.
-  lungV0: 1.5,      // volume of the lung at zero transpulmonary pressure (collapsed to minimal volume)
-  lungVmax: 6.4,    // asymptotic maximum lung volume
-  lungK: 0.0735,    // shape constant, 1/cmH2O
+  // Fit to PL 5 cmH2O at FRC 3.0 L, CL 0.28 L/cmH2O at FRC, and PL 34 cmH2O at TLC 6.0 L.
+  // V0 is the lung's minimal volume ("minimal air"), below RV, so the lung still recoils a little at RV.
+  lungV0: 1.2530,   // volume of the lung at zero transpulmonary pressure
+  lungVmax: 6.2742, // asymptotic maximum lung volume
+  lungK: 0.08552,   // shape constant, 1/cmH2O
   // Chest wall (logistic): V = Vlow + (Vhigh - Vlow) / (1 + exp(-(Pcw - Pc) / b)).
   // Fit so the chest wall rests at 72% VC (4.75 L; Rahn et al. 1946), recoils outward
-  // -5 cmH2O at FRC (3.0 L), and about -20 cmH2O at RV (1.5 L).
-  cwVlow: 1.4614,
+  // -5 cmH2O at FRC (3.0 L), and -14 cmH2O at RV (1.5 L), leaving room for RV to fall when the
+  // chest wall is loaded (obesity) or the lung is stiff (fibrosis).
+  cwVlow: 1.2564,
   cwVhigh: 7.0,
-  cwPc: -1.4215,    // cmH2O
-  cwB: 3.7454,      // cmH2O
+  cwPc: -1.7318,    // cmH2O
+  cwB: 3.9359,      // cmH2O
   // Maximal relaxation-pressure equivalents of the respiratory muscles at 100% strength.
   // Calibrated so the healthy model gives TLC 6.0 L and RV 1.5 L.
   inspMax: null,

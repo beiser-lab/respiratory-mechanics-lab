@@ -21,8 +21,8 @@ export const CPET_DEFAULTS = Object.freeze({
   strokeVolume: 1,      // maximal stroke volume multiplier (normal SVmax 110 mL)
   heartRateMax: 1,      // maximal heart rate as a fraction of predicted (220 - age)
   fitness: 1,           // muscle oxidative capacity: scales maximal O2 extraction and the AT fraction
-  fev1: 3.65,           // L (the PFT page's healthy adult); MVV = FEV1 * 40
-  vc: 4.4,              // L; limits tidal volume
+  fev1: 3.62,           // L (the PFT page's healthy adult); MVV = FEV1 * 40
+  vc: 4.5,              // L; limits tidal volume
   deadSpace: 0.15,      // VD/VT at peak exercise (rest 0.33)
   desaturation: 0,      // fall in SpO2 at peak exercise, percentage points
   hemoglobin: 14.6,
