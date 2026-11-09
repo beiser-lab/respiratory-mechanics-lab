@@ -1,4 +1,4 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=13';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=14';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944' };
@@ -65,16 +65,22 @@ function chart(id) {
   const X = x => left + (x - AX.pMin) / (AX.pMax - AX.pMin) * (right - left);
   const Y = y => bottom - (y - AX.vMin) / (AX.vMax - AX.vMin) * (bottom - top);
   const Yinv = py => AX.vMin + (bottom - py) / (bottom - top) * (AX.vMax - AX.vMin);
+  const compact = w < 560;
   ctx.font = '10px -apple-system, sans-serif'; ctx.lineWidth = 1;
   for (let v = 0; v <= AX.vMax; v++) { ctx.strokeStyle = colors.grid; ctx.beginPath(); ctx.moveTo(left, Y(v)); ctx.lineTo(right, Y(v)); ctx.stroke(); ctx.fillStyle = colors.text; ctx.textAlign = 'right'; ctx.fillText(v, left - 8, Y(v) + 3); }
   for (let p = AX.pMin; p <= AX.pMax; p += 10) { ctx.strokeStyle = p === 0 ? colors.axis : colors.grid; ctx.lineWidth = p === 0 ? 1.4 : 1; ctx.beginPath(); ctx.moveTo(X(p), top); ctx.lineTo(X(p), bottom); ctx.stroke(); ctx.fillStyle = colors.text; ctx.textAlign = 'center'; ctx.fillText(p, X(p), bottom + 16); }
   ctx.lineWidth = 1;
   ctx.fillStyle = colors.text; ctx.textAlign = 'left'; ctx.fillText('Volume (L)', 3, 14);
-  ctx.textAlign = 'center'; ctx.fillText('Relaxation pressure (cmH₂O) · lung: Ptp = PA − Ppl · chest wall: Ppl · system: Prs', (left + right) / 2, h - 6);
+  ctx.textAlign = 'center'; ctx.fillText(compact ? 'Relaxation pressure (cmH₂O)' : 'Relaxation pressure (cmH₂O) · lung: Ptp = PA − Ppl · chest wall: Ppl · system: Prs', (left + right) / 2, h - 6);
   ctx.font = '600 11px -apple-system, sans-serif'; ctx.fillStyle = '#4d4d4d';
-  ctx.fillText('← Compression (inward)', (left + X(0)) / 2, top - 18); ctx.fillText('Expansion (outward) →', (X(0) + right) / 2, top - 18);
-  ctx.font = '10px -apple-system, sans-serif'; ctx.fillStyle = colors.text;
-  ctx.fillText('held below its rest volume, so it springs back out', (left + X(0)) / 2, top - 5); ctx.fillText('held above its rest volume, so it recoils back in', (X(0) + right) / 2, top - 5);
+  if (compact) {
+    ctx.font = '600 10px -apple-system, sans-serif'; ctx.textAlign = 'right'; ctx.fillText('← Compression', X(0) - 6, top - 10);
+    ctx.textAlign = 'left'; ctx.fillText('Expansion →', X(0) + 6, top - 10);
+  } else {
+    ctx.fillText('← Compression (inward)', (left + X(0)) / 2, top - 18); ctx.fillText('Expansion (outward) →', (X(0) + right) / 2, top - 18);
+    ctx.font = '10px -apple-system, sans-serif'; ctx.fillStyle = colors.text;
+    ctx.fillText('held below its rest volume, so it springs back out', (left + X(0)) / 2, top - 5); ctx.fillText('held above its rest volume, so it recoils back in', (X(0) + right) / 2, top - 5);
+  }
   ctx.font = '10px -apple-system, sans-serif';
   const clip = fn => { ctx.save(); ctx.beginPath(); ctx.rect(left, top, right - left, bottom - top); ctx.clip(); fn(); ctx.restore(); };
   const line = (pts, color, { dashed = false, width = 2.2, alpha = 1 } = {}) => clip(() => {
@@ -89,7 +95,7 @@ function chart(id) {
     ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.6; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(xa, py); ctx.lineTo(xb, py); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(xb, py); ctx.lineTo(xb - dir * 7, py - 4); ctx.lineTo(xb - dir * 7, py + 4); ctx.closePath(); ctx.fill();
   };
-  return { ctx, line, hline, dot, arrow, X, Y, Yinv, left, right, top, bottom };
+  return { ctx, line, hline, dot, arrow, X, Y, Yinv, left, right, top, bottom, compact };
 }
 
 const pctVC = (V, a) => Math.round(100 * (V - a.rv) / a.vc);
@@ -123,14 +129,14 @@ function draw() {
     g.ctx.textAlign = side === 'left' ? 'right' : 'left';
     g.ctx.fillText(text, g.X(p.x) + (side === 'left' ? -8 : 8), g.Y(p.y) + 4);
   };
-  label(c.chestWall, 6.25, 'Chest wall', colors.chestWall, 'left'); label(c.lung, 5.2, 'Lung', colors.lung, 'left'); label(c.system, 5.0, 'Lung + chest wall', colors.system, 'right');
+  label(c.chestWall, 6.25, 'Chest wall', colors.chestWall, 'left'); label(c.lung, 5.2, 'Lung', colors.lung, 'left'); if (!g.compact) label(c.system, 5.0, 'Lung + chest wall', colors.system, 'right');
   // Chest wall at rest (Pcw = 0), point C in the classic Rahn/Beachey figure.
   const rest = a.chestWallRestingVolume;
   if (rest <= V_DRAW_MAX) {
     g.ctx.save(); g.ctx.fillStyle = 'white'; g.ctx.strokeStyle = colors.chestWall; g.ctx.lineWidth = 2; g.ctx.setLineDash([]);
     g.ctx.beginPath(); g.ctx.arc(g.X(0), g.Y(rest), 5, 0, Math.PI * 2); g.ctx.fill(); g.ctx.stroke();
     g.ctx.fillStyle = colors.chestWall; g.ctx.font = '10px -apple-system, sans-serif'; g.ctx.textAlign = 'right';
-    g.ctx.fillText(`Chest wall at rest (${pctVC(rest, a)}% VC)`, g.X(0) - 10, g.Y(rest) + 4); g.ctx.restore();
+    g.ctx.fillText(g.compact ? `Rest ${pctVC(rest, a)}% VC` : `Chest wall at rest (${pctVC(rest, a)}% VC)`, g.X(0) - 10, g.Y(rest) + 4); g.ctx.restore();
   }
 
   renderBreathPanel();
