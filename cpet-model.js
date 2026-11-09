@@ -1,7 +1,7 @@
 // Cardiopulmonary exercise test (ramp cycle ergometer) teaching model.
 // Units: VO2 and VCO2 mL/min, VE L/min, HR beats/min, work W, time s, Hb g/dL.
 //
-// The chain from the PFT lab slides and the course exercise lecture: muscle -> circulation -> lungs.
+// The chain from the course PFT lab slides and exercise lecture: muscle -> circulation -> lungs.
 //  Muscle:      VO2 demand = VO2rest + unloaded pedaling + 10.3 mL/min per W. VO2 follows demand with
 //               a time constant (O2 kinetics), so on a fast ramp VO2 lags further behind the work.
 //               Once demand passes the VO2 ceiling the extra work is paid for anaerobically; the test ends
@@ -138,7 +138,7 @@ export const CPET_PRESETS = {
   anemia: preset('Anemia (Hb 9 g/dL)', { hemoglobin: 9 }),
 };
 
-// Simple stepwise CPET interpretation (teaching thresholds; Milani et al. 2006, the PFT lab, the course materials).
+// Simple stepwise CPET interpretation (teaching thresholds; Milani et al. 2006 and the course materials).
 export function interpretCPET(r) {
   const s = r.summary, steps = [];
   const maximal = s.rerPeak >= 1.10, ventLimit = s.breathingReserve < 15;
