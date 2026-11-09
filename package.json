@@ -2,5 +2,5 @@
   "name": "respiratory-mechanics-lab",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/model.test.mjs", "start": "python3 -m http.server 4174 --bind 127.0.0.1 --directory dist" }
+  "scripts": { "test": "node --test tests/model.test.mjs tests/pft.test.mjs", "start": "python3 -m http.server 4174 --bind 127.0.0.1 --directory dist" }
 }
