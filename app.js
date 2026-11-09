@@ -43,7 +43,7 @@ const VOLUME_METRICS = [
 const MECH_METRICS = [
   ['lungRecoilAtFrc', 'Lung recoil (inward)', 'cmH₂O', 1], ['chestWallRecoilAtFrc', 'Chest wall recoil (outward if −)', 'cmH₂O', 1],
   ['lungCompliance', 'Lung compliance, CL', 'L/cmH₂O', 3], ['chestWallCompliance', 'Chest wall compliance, Ccw', 'L/cmH₂O', 3],
-  ['systemCompliance', 'Respiratory system, Crs', 'L/cmH₂O', 3],
+  ['systemCompliance', 'Respiratory system, Crs', 'L/cmH₂O', 3], ['chestWallRestingVolume', 'Chest wall resting volume', 'L', 2],
 ];
 function renderMetrics(container, specs, a) {
   $(container).innerHTML = specs.map(([key, label, unit, dp]) => {
@@ -90,6 +90,39 @@ function chart(id) {
   return { ctx, line, hline, dot, arrow, X, Y, Yinv, left, right, top, bottom };
 }
 
+const pctVC = (V, a) => Math.round(100 * (V - a.rv) / a.vc);
+
+// Small lung-in-chest-wall cartoon for the volume being examined, after the cartoons in the
+// Rahn/Beachey relaxation-curve figure. Arrow direction and length show each recoil pressure.
+function drawThorax(g, pr, a) {
+  const { ctx } = g, bw = 220, bh = 178, bx = g.right - bw - 8, by = g.bottom - bh - 8;
+  ctx.save(); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,0.96)'; ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#4d4d4d'; ctx.font = '600 11px -apple-system, sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(`At ${pr.volume.toFixed(2)} L (${pctVC(pr.volume, a)}% VC)`, bx + 9, by + 15);
+  const frac = Math.max(0, Math.min(1, (pr.volume - 1.3) / (6.6 - 1.3)));
+  const h = 50 + 80 * frac, w = h * 0.6, cx = bx + bw / 2, base = by + bh - 18, t = 8;
+  const dome = (hw, hh) => { ctx.beginPath(); ctx.moveTo(cx - hw, base); ctx.lineTo(cx - hw, base - hh * 0.38);
+    ctx.bezierCurveTo(cx - hw, base - hh * 0.95, cx - hw * 0.35, base - hh, cx, base - hh);
+    ctx.bezierCurveTo(cx + hw * 0.35, base - hh, cx + hw, base - hh * 0.95, cx + hw, base - hh * 0.38); ctx.lineTo(cx + hw, base); ctx.closePath(); };
+  dome(w, h); ctx.fillStyle = '#d3e2ec'; ctx.fill(); ctx.strokeStyle = colors.chestWall; ctx.lineWidth = 1.4; ctx.stroke();
+  dome(w - t, h - t); ctx.fillStyle = '#f3dcc0'; ctx.fill(); ctx.strokeStyle = colors.lung; ctx.stroke();
+  const y = base - h * 0.45;
+  const arrow = (x0, x1, color) => { if (Math.abs(x1 - x0) < 3) return; const d = Math.sign(x1 - x0);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1 - d * 5, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1 - d * 7, y - 4.5); ctx.lineTo(x1 - d * 7, y + 4.5); ctx.closePath(); ctx.fill(); };
+  const len = P => Number.isFinite(P) ? Math.min(48, 2.6 * Math.abs(P)) : 48;
+  // Lung recoil always pulls inward, from the left inner surface toward the center.
+  const lx = cx - w + t + 2; arrow(lx, lx + len(pr.lung), colors.lung);
+  // Chest wall: outward when Pcw < 0 (wants to be bigger), inward when Pcw > 0.
+  const rx = cx + w + 2, L = len(pr.chestWall);
+  if (pr.chestWall < 0) arrow(rx, rx + L, colors.chestWall); else arrow(rx + L, rx, colors.chestWall);
+  ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = colors.text;
+  ctx.fillText(Math.abs(pr.chestWall) < 0.3 ? 'chest wall at rest' : (pr.chestWall < 0 ? 'chest wall pulls out' : 'chest wall pulls in'), cx, by + bh - 3);
+  ctx.restore();
+}
+
 function draw() {
   const a = analyze(settings), c = trim(curves(settings, PARAMS, AX)), g = chart('pv');
   const overlay = $('overlay').checked, limits = $('show-limits').checked;
@@ -117,12 +150,21 @@ function draw() {
     g.ctx.textAlign = side === 'left' ? 'right' : 'left';
     g.ctx.fillText(text, g.X(p.x) + (side === 'left' ? -8 : 8), g.Y(p.y) + 4);
   };
-  label(c.chestWall, 5.6, 'Chest wall', colors.chestWall, 'left'); label(c.lung, 5.2, 'Lung', colors.lung, 'left'); label(c.system, 5.0, 'Lung + chest wall', colors.system, 'right');
+  label(c.chestWall, 6.25, 'Chest wall', colors.chestWall, 'left'); label(c.lung, 5.2, 'Lung', colors.lung, 'left'); label(c.system, 5.0, 'Lung + chest wall', colors.system, 'right');
+  // Chest wall at rest (Pcw = 0), point C in the classic Rahn/Beachey figure.
+  const rest = a.chestWallRestingVolume;
+  if (rest <= V_DRAW_MAX) {
+    g.ctx.save(); g.ctx.fillStyle = 'white'; g.ctx.strokeStyle = colors.chestWall; g.ctx.lineWidth = 2; g.ctx.setLineDash([]);
+    g.ctx.beginPath(); g.ctx.arc(g.X(0), g.Y(rest), 5, 0, Math.PI * 2); g.ctx.fill(); g.ctx.stroke();
+    g.ctx.fillStyle = colors.chestWall; g.ctx.font = '10px -apple-system, sans-serif'; g.ctx.textAlign = 'right';
+    g.ctx.fillText(`Chest wall at rest (${pctVC(rest, a)}% VC)`, g.X(0) - 10, g.Y(rest) + 4); g.ctx.restore();
+  }
+  drawThorax(g, pr, a);
 
   renderMetrics('metrics-volumes', VOLUME_METRICS, a);
   renderMetrics('metrics-mech', MECH_METRICS, a);
   for (const [k, s] of Object.entries(sliders)) $(s.out).textContent = s.fmt(settings[k]);
-  $('probe-out').textContent = probeVolume.toFixed(2) + ' L';
+  $('probe-out').textContent = `${probeVolume.toFixed(2)} L · ${pctVC(probeVolume, a)}% VC`;
   const f = x => !Number.isFinite(x) ? (x > 0 ? '+∞' : '−∞') : (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1);
   $('probe-sum').innerHTML = `At ${probeVolume.toFixed(2)} L: <b class="lung">P<sub>L</sub> ${f(pr.lung)}</b> + <b class="cw">P<sub>cw</sub> ${f(pr.chestWall)}</b> = <b class="rs">P<sub>rs</sub> ${f(pr.system)}</b> cmH₂O`
     + `<br><span class="hint">Series check at FRC: 1 / (1/${a.lungCompliance.toFixed(3)} + 1/${a.chestWallCompliance.toFixed(3)}) = ${a.seriesCheck.toFixed(3)} L/cmH₂O, the slope of the combined curve.</span>`;
