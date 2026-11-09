@@ -18,7 +18,7 @@
 // DLCO (Roughton & Forster 1957):  1/DLCO = 1/DM + 1/(theta * Vc), theta proportional to Hb.
 // Hb adjustment (ERS/ATS 2017, adult male): DLCOcorr = DLCO * (10.22 + Hb) / (1.7 * Hb).
 
-import { analyze, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=5';
+import { analyze, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=6';
 
 export const PFT_DEFAULTS = Object.freeze({
   ...STATIC_DEFAULTS,
@@ -27,15 +27,16 @@ export const PFT_DEFAULTS = Object.freeze({
   upperAirwayLimit: 0,     // fixed upper airway obstruction: max flow in L/s; 0 = none
   membrane: 1,             // DM multiplier (alveolar-capillary membrane / surface area)
   capillaryVolume: 1,      // Vc multiplier (pulmonary capillary blood volume)
-  hemoglobin: 15,          // g/dL
+  hemoglobin: 14.6,        // g/dL; ERS/ATS 2017 reference value for adult men
 });
 
 export const K = Object.freeze({
-  Rus0: 2.1, Pt: 0.6, closureFactor: 10,
+  Rus0: 2.1, Pt: 0.6, closureFactor: 10, forcedClosureFactor: 7,
   Rcentral: 3.5, effortTau: 0.05, waveSpeedMax: 10,
   Rinsp: 6, inspTau: 0.2,
   endFlow: 0.025, maxExpTime: 15, dt: 0.002,
-  DM: 50, thetaVcNormal: 50, HbNormal: 15,
+  // DM/(theta*Vc) = 0.7 at the reference Hb, the assumption behind the ERS/ATS Hb correction.
+  DM: 42.5, thetaVcNormal: 60.7, HbNormal: 14.6,
 });
 
 const softMin = (xs, p = 6) => { let s = 0; for (const x of xs) { if (x <= 0) return 0; s += x ** -p; } return s ** (-1 / p); };
@@ -45,9 +46,11 @@ function rus(V, s) {
   return K.Rus0 * s.airwayResistance * (1 + s.airwayCollapsibility * (K.Pt / PL) ** 2);
 }
 
-// Closing volume: where Rus reaches closureFactor times its open value.
-export function closingVolume(s) {
-  const target = K.Pt * Math.sqrt(s.airwayCollapsibility / (K.closureFactor - 1));
+// Closing volume: where Rus reaches `factor` times its open value. During a forced expiration the
+// airways are also squeezed by positive pleural pressure, so they close earlier (higher volume) than
+// during a slow exhalation. That is why SVC can exceed FVC in obstruction.
+export function closingVolume(s, factor = K.closureFactor) {
+  const target = K.Pt * Math.sqrt(s.airwayCollapsibility / (factor - 1));
   let lo = PARAMS.lungV0, hi = PARAMS.lungVmax - 1e-6;
   for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (lungPressure(m, s.lungCompliance, PARAMS) < target) lo = m; else hi = m; }
   return (lo + hi) / 2;
@@ -59,7 +62,7 @@ function expiratoryFlow(V, t, s, statics) {
   const effort = (1 - Math.exp(-t / K.effortTau)) * (systemPressure(V, s, PARAMS) + PARAMS.expMax * s.muscleStrength) / K.Rcentral;
   const limits = [smallAirway, effort, K.waveSpeedMax];
   if (s.upperAirwayLimit > 0) limits.push(s.upperAirwayLimit);
-  return V <= statics.closing ? 0 : softMin(limits);
+  return V <= statics.forcedEnd ? 0 : softMin(limits);
 }
 function inspiratoryFlow(V, t, s) {
   const drive = PARAMS.inspMax * s.muscleStrength - systemPressure(V, s, PARAMS);
@@ -73,13 +76,14 @@ export function simulate(settings = {}) {
   const st = analyze(s);
   const closing = closingVolume(s);
   const rv = Math.max(st.rv, closing);           // RV after a slow, complete exhalation
-  const statics = { ...st, closing, rvMeasured: rv };
+  const forcedEnd = Math.max(st.rv, closingVolume(s, K.forcedClosureFactor)); // RV reached by a forced expiration
+  const statics = { ...st, closing, rvMeasured: rv, forcedEnd };
   // Forced expiration from TLC.
   const exp = [{ t: 0, v: st.tlc, flow: 0 }];
   let V = st.tlc, t = 0, quietSince = null;
   while (t < K.maxExpTime) {
     const f = expiratoryFlow(V, t, s, statics);
-    V = Math.max(rv, V - f * K.dt); t += K.dt;
+    V = Math.max(forcedEnd, V - f * K.dt); t += K.dt;
     exp.push({ t, v: V, flow: f });
     if (f < K.endFlow && t > 0.5) { quietSince ??= t; if (t - quietSince >= 1) break; } else quietSince = null;
   }
@@ -103,7 +107,7 @@ export function simulate(settings = {}) {
   // Diffusion.
   const thetaVc = K.thetaVcNormal * s.capillaryVolume * s.hemoglobin / K.HbNormal;
   const dlco = 1 / (1 / (K.DM * s.membrane) + 1 / thetaVc);
-  const dlcoCorrected = dlco * (10.22 + s.hemoglobin) / (1.7 * s.hemoglobin) / ((10.22 + K.HbNormal) / (1.7 * K.HbNormal));
+  const dlcoCorrected = dlco * (10.22 + s.hemoglobin) / (1.7 * s.hemoglobin); // ERS/ATS 2017, males >= 15 y
   const svc = st.tlc - rv;
   return {
     settings: s, statics, expiration: exp, inspiration: insp,
@@ -121,10 +125,10 @@ const preset = (label, o, extra = {}) => ({ label, settings: { ...PFT_DEFAULTS, 
 export const PFT_PRESETS = {
   normal: preset('Healthy adult', {}),
   emphysema: preset('Emphysema (Small Group 1 case: 72-year-old former smoker)', { lungCompliance: 2.5, airwayCollapsibility: 60, airwayResistance: 1.5, membrane: 0.5, capillaryVolume: 0.7 }),
-  asthma: preset('Asthma, during an exacerbation', { airwayResistance: 2.8, airwayCollapsibility: 3, capillaryVolume: 1.2 }, { bronchodilator: { airwayResistance: 1.2, airwayCollapsibility: 1.2 } }),
-  ild: preset('Interstitial lung disease (pulmonary fibrosis)', { lungCompliance: 0.42, membrane: 0.45, capillaryVolume: 0.8 }),
-  obesity: preset('Obesity', { chestWallLoad: 5, capillaryVolume: 1.1 }),
-  neuromuscular: preset('Respiratory muscle weakness (Small Group 4 case)', { muscleStrength: 0.45 }, { supine: { muscleStrength: 0.35, chestWallLoad: 2 } }),
+  asthma: preset('Asthma, during an exacerbation', { airwayResistance: 2.8, airwayCollapsibility: 8, capillaryVolume: 1.2 }, { bronchodilator: { airwayResistance: 1.2, airwayCollapsibility: 1.2 } }),
+  ild: preset('Interstitial lung disease (pulmonary fibrosis)', { lungCompliance: 0.35, membrane: 0.45, capillaryVolume: 0.8 }),
+  obesity: preset('Obesity', { chestWallLoad: 7, capillaryVolume: 1.1 }),
+  neuromuscular: preset('Respiratory muscle weakness (Small Group 4 case)', { muscleStrength: 0.38 }, { supine: { muscleStrength: 0.3, chestWallLoad: 2 } }),
   upperAirway: preset('Fixed upper airway obstruction (e.g., tracheal stenosis)', { upperAirwayLimit: 3 }),
   anemia: preset('Anemia (Hb 8 g/dL), lungs normal', { hemoglobin: 8 }),
 };
