@@ -1,4 +1,4 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure } from './model.js';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure } from './model.js?v=3';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944' };
@@ -94,15 +94,15 @@ const pctVC = (V, a) => Math.round(100 * (V - a.rv) / a.vc);
 
 // Small lung-in-chest-wall cartoon for the volume being examined, after the cartoons in the
 // Rahn/Beachey relaxation-curve figure. Arrow direction and length show each recoil pressure.
-function drawThorax(g, pr, a) {
-  const { ctx } = g, bw = 220, bh = 178, bx = g.right - bw - 8, by = g.bottom - bh - 8;
+function drawThorax(pr, a) {
+  const canvas = $('thorax'), r = canvas.getBoundingClientRect(), bw = r.width;
+  const bh = Number(canvas.dataset.logicalHeight || (canvas.dataset.logicalHeight = canvas.getAttribute('height'))), dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(bw * dpr) || canvas.height !== Math.round(bh * dpr)) { canvas.width = Math.round(bw * dpr); canvas.height = Math.round(bh * dpr); canvas.style.height = bh + 'px'; }
+  const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, bw, bh);
+  const bx = 0, by = 0;
   ctx.save(); ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(255,255,255,0.96)'; ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#4d4d4d'; ctx.font = '600 11px -apple-system, sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText(`At ${pr.volume.toFixed(2)} L (${pctVC(pr.volume, a)}% VC)`, bx + 9, by + 15);
   const frac = Math.max(0, Math.min(1, (pr.volume - 1.3) / (6.6 - 1.3)));
-  const h = 50 + 80 * frac, w = h * 0.6, cx = bx + bw / 2, base = by + bh - 18, t = 8;
+  const h = 55 + 95 * frac, w = h * 0.6, cx = bx + bw / 2, base = by + bh - 20, t = 9;
   const dome = (hw, hh) => { ctx.beginPath(); ctx.moveTo(cx - hw, base); ctx.lineTo(cx - hw, base - hh * 0.38);
     ctx.bezierCurveTo(cx - hw, base - hh * 0.95, cx - hw * 0.35, base - hh, cx, base - hh);
     ctx.bezierCurveTo(cx + hw * 0.35, base - hh, cx + hw, base - hh * 0.95, cx + hw, base - hh * 0.38); ctx.lineTo(cx + hw, base); ctx.closePath(); };
@@ -159,8 +159,8 @@ function draw() {
     g.ctx.fillStyle = colors.chestWall; g.ctx.font = '10px -apple-system, sans-serif'; g.ctx.textAlign = 'right';
     g.ctx.fillText(`Chest wall at rest (${pctVC(rest, a)}% VC)`, g.X(0) - 10, g.Y(rest) + 4); g.ctx.restore();
   }
-  drawThorax(g, pr, a);
 
+  drawThorax(pr, a);
   renderMetrics('metrics-volumes', VOLUME_METRICS, a);
   renderMetrics('metrics-mech', MECH_METRICS, a);
   for (const [k, s] of Object.entries(sliders)) $(s.out).textContent = s.fmt(settings[k]);
