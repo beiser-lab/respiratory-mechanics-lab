@@ -6,7 +6,7 @@ Live site: https://beiser-lab.github.io/respiratory-mechanics-lab/
 
 ## Status
 
-Experimental teaching model. The first module covers lung and chest wall statics: students change lung compliance, chest wall compliance, inward load on the chest wall, and respiratory muscle strength, then follow the relaxation pressure–volume curves, FRC, TLC, RV, VC, ERV, recoil pressures, and compliances. The second page, Pulmonary function tests (`pft.html`), follows the MEDC 30504 PFT small groups: spirometry tracing with volumes and capacities, flow-volume loop, volume-time curve, a PFT report (plethysmography, spirometry, slow VC, DLCO), and patients with emphysema, asthma (with bronchodilator), ILD, obesity, respiratory muscle weakness (upright and supine), fixed upper airway obstruction, and anemia. Not for patient care.
+Experimental teaching model. The first module covers lung and chest wall statics: students change lung compliance, chest wall compliance, inward load on the chest wall, and respiratory muscle strength, then follow the relaxation pressure–volume curves, FRC, TLC, RV, VC, ERV, recoil pressures, and compliances. The second page, Pulmonary function tests (`pft.html`), follows the MEDC 30504 PFT small groups: spirometry tracing with volumes and capacities, flow-volume loop, volume-time curve, a PFT report (plethysmography, spirometry, slow VC, DLCO), and patients with emphysema, asthma (with bronchodilator), ILD, obesity, respiratory muscle weakness (upright and supine), fixed upper airway obstruction, and anemia, with a stepwise interpretation. The third page, Exercise testing (`cpet.html`), is a ramp cardiopulmonary exercise test (VO2, VCO2, HR, ventilatory equivalents, V-slope, ventilation against MVV, SpO2, a CPET report, and a stepwise read of what limited exercise) for a healthy subject, athlete, deconditioning, heart failure, COPD, ILD, pulmonary vascular disease, and anemia. Not for patient care.
 
 It shares its look with [Circulation Lab](https://github.com/beiser-lab/circulation-lab) so the two can later be combined.
 
@@ -32,6 +32,13 @@ On the statics page the model has no airway closure, so RV does not rise in emph
 - DLCO uses Roughton–Forster, 1/DLCO = 1/DM + 1/(θ·Vc), with θ proportional to hemoglobin and the ERS/ATS 2017 hemoglobin correction.
 - "Predicted" values are the model's healthy adult, not reference equations.
 - Not modeled: dynamic hyperinflation, effort variability, gas dilution volumes, and the extra lung volume of emphysema, so TLC rises less than in real patients.
+
+## CPET model
+
+- VO2 demand = 3.5 mL/kg/min + 150 mL/min unloaded + 10.3 mL/min per W, 45 s kinetics, capped by Fick: HRmax × SVmax × CaO2 × maximal extraction.
+- Above the anaerobic threshold, bicarbonate buffering adds CO2 (V-slope); past the respiratory compensation point PaCO2 falls.
+- VE = 0.863·VCO2 / [PaCO2·(1 − VD/VT)]; MVV = FEV1 × 40; the test stops at the circulatory or ventilatory limit, whichever comes first.
+- Predicted VO2max = weight × (50.72 − 0.372 × age) for men (Hansen, Sue & Wasserman 1984); HRmax = 220 − age.
 
 ## Development
 
@@ -63,3 +70,7 @@ git subtree push --prefix dist origin gh-pages
 8. Graham BL, et al. Standardization of spirometry 2019 update. Am J Respir Crit Care Med. 2019;200(8):e70–e88.
 9. Graham BL, et al. 2017 ERS/ATS standards for single-breath carbon monoxide uptake in the lung. Eur Respir J. 2017;49(1):1600016.
 10. Stanojevic S, et al. ERS/ATS technical standard on interpretive strategies for routine lung function tests. Eur Respir J. 2022;60(1):2101499.
+11. Milani RV, Lavie CJ, Mehra MR, Ventura HO. Understanding the basics of cardiopulmonary exercise testing. Mayo Clin Proc. 2006;81(12):1603–1611.
+12. ATS/ACCP statement on cardiopulmonary exercise testing. Am J Respir Crit Care Med. 2003;167(2):211–277.
+13. Hansen JE, Sue DY, Wasserman K. Predicted values for clinical exercise testing. Am Rev Respir Dis. 1984;129(2 Pt 2):S49–S55.
+14. Beaver WL, Wasserman K, Whipp BJ. A new method for detecting anaerobic threshold by gas exchange. J Appl Physiol. 1986;60(6):2020–2027.
