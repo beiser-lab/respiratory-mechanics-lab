@@ -1,0 +1,23 @@
+name: Suggest an improvement
+description: Suggest a teaching feature, clinical scenario, or interface improvement.
+title: "[Suggestion]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Suggestions are public. Please check existing issues first; you can comment or add a reaction to an existing suggestion."
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What would you like to improve?
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: How would this help learning or teaching?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example or supporting reference (optional)
