@@ -1,4 +1,4 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure } from './model.js?v=3';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure } from './model.js?v=4';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944' };
@@ -92,37 +92,6 @@ function chart(id) {
 
 const pctVC = (V, a) => Math.round(100 * (V - a.rv) / a.vc);
 
-// Small lung-in-chest-wall cartoon for the volume being examined, after the cartoons in the
-// Rahn/Beachey relaxation-curve figure. Arrow direction and length show each recoil pressure.
-function drawThorax(pr, a) {
-  const canvas = $('thorax'), r = canvas.getBoundingClientRect(), bw = r.width;
-  const bh = Number(canvas.dataset.logicalHeight || (canvas.dataset.logicalHeight = canvas.getAttribute('height'))), dpr = window.devicePixelRatio || 1;
-  if (canvas.width !== Math.round(bw * dpr) || canvas.height !== Math.round(bh * dpr)) { canvas.width = Math.round(bw * dpr); canvas.height = Math.round(bh * dpr); canvas.style.height = bh + 'px'; }
-  const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, bw, bh);
-  const bx = 0, by = 0;
-  ctx.save(); ctx.setLineDash([]);
-  const frac = Math.max(0, Math.min(1, (pr.volume - 1.3) / (6.6 - 1.3)));
-  const h = 55 + 95 * frac, w = h * 0.6, cx = bx + bw / 2, base = by + bh - 20, t = 9;
-  const dome = (hw, hh) => { ctx.beginPath(); ctx.moveTo(cx - hw, base); ctx.lineTo(cx - hw, base - hh * 0.38);
-    ctx.bezierCurveTo(cx - hw, base - hh * 0.95, cx - hw * 0.35, base - hh, cx, base - hh);
-    ctx.bezierCurveTo(cx + hw * 0.35, base - hh, cx + hw, base - hh * 0.95, cx + hw, base - hh * 0.38); ctx.lineTo(cx + hw, base); ctx.closePath(); };
-  dome(w, h); ctx.fillStyle = '#d3e2ec'; ctx.fill(); ctx.strokeStyle = colors.chestWall; ctx.lineWidth = 1.4; ctx.stroke();
-  dome(w - t, h - t); ctx.fillStyle = '#f3dcc0'; ctx.fill(); ctx.strokeStyle = colors.lung; ctx.stroke();
-  const y = base - h * 0.45;
-  const arrow = (x0, x1, color) => { if (Math.abs(x1 - x0) < 3) return; const d = Math.sign(x1 - x0);
-    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1 - d * 5, y); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1 - d * 7, y - 4.5); ctx.lineTo(x1 - d * 7, y + 4.5); ctx.closePath(); ctx.fill(); };
-  const len = P => Number.isFinite(P) ? Math.min(48, 2.6 * Math.abs(P)) : 48;
-  // Lung recoil always pulls inward, from the left inner surface toward the center.
-  const lx = cx - w + t + 2; arrow(lx, lx + len(pr.lung), colors.lung);
-  // Chest wall: outward when Pcw < 0 (wants to be bigger), inward when Pcw > 0.
-  const rx = cx + w + 2, L = len(pr.chestWall);
-  if (pr.chestWall < 0) arrow(rx, rx + L, colors.chestWall); else arrow(rx + L, rx, colors.chestWall);
-  ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = colors.text;
-  ctx.fillText(Math.abs(pr.chestWall) < 0.3 ? 'chest wall at rest' : (pr.chestWall < 0 ? 'chest wall pulls out' : 'chest wall pulls in'), cx, by + bh - 3);
-  ctx.restore();
-}
-
 function draw() {
   const a = analyze(settings), c = trim(curves(settings, PARAMS, AX)), g = chart('pv');
   const overlay = $('overlay').checked, limits = $('show-limits').checked;
@@ -160,7 +129,6 @@ function draw() {
     g.ctx.fillText(`Chest wall at rest (${pctVC(rest, a)}% VC)`, g.X(0) - 10, g.Y(rest) + 4); g.ctx.restore();
   }
 
-  drawThorax(pr, a);
   renderMetrics('metrics-volumes', VOLUME_METRICS, a);
   renderMetrics('metrics-mech', MECH_METRICS, a);
   for (const [k, s] of Object.entries(sliders)) $(s.out).textContent = s.fmt(settings[k]);

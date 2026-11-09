@@ -21,5 +21,3 @@
 .eq{font-family:"STIX Two Text","Times New Roman",serif;font-size:18px !important;text-align:center;margin:14px 0}
 #pv{cursor:crosshair;touch-action:none}
 .refs{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}.refs summary{font-size:11px;font-weight:600;color:var(--accent);cursor:pointer}.refs ol{font-size:11px;line-height:1.6;color:#4d4d4d;padding-left:20px;margin:10px 0 0}.refs li{margin-bottom:6px}.refs a{color:#800000;text-underline-offset:2px}
-.probe{display:flex;gap:22px;align-items:flex-start}.probe-controls{flex:1;min-width:0}.thorax{width:240px;flex-shrink:0;margin:0;border-left:1px solid var(--border);padding-left:18px}.thorax canvas{width:100%}.thorax figcaption{font-size:10px;color:var(--muted);line-height:1.4;text-align:center;margin-top:2px}
-@media(max-width:700px){.probe{flex-direction:column}.thorax{width:100%;border-left:0;padding-left:0}}
