@@ -140,6 +140,37 @@ export function curves(settings = DEFAULT_SETTINGS, p = PARAMS, { pMin = -40, pM
   return { lung, chestWall, system };
 }
 
+// One quiet breath from FRC. The inspiratory muscles add a pressure Pmus that lowers pleural
+// pressure below the chest wall's relaxation pressure: Ppl = Pcw(V) - Pmus. The lung's elastic
+// recoil depends only on volume, Pel = Ptp = PA - Ppl, so PA = Ppl + Pel. When PA falls below zero
+// (atmosphere), air flows in through the airways: flow = -PA / Raw. Pmus is sized so the breath
+// reaches the same tidal volume in every condition, which lets the work be compared directly.
+// Elastic work per breath = integral of Prs dV from FRC to end inspiration (area under the
+// combined curve), in cmH2O*L; 1 cmH2O*L = 0.0981 J.
+export const BREATH = Object.freeze({ tidalVolume: 0.5, raw: 3, rise: 0.9, holdUntil: 2.4, relax: 0.4, duration: 5.2, dt: 0.01 });
+export function simulateBreath(settings = DEFAULT_SETTINGS, p = PARAMS, b = BREATH) {
+  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const frc = volumeAtSystemPressure(0, s, p);
+  const vEnd = frc + b.tidalVolume;
+  const pPlateau = systemPressure(vEnd, s, p); // Prs(FRC) = 0
+  const smooth = x => { const u = clamp(x, 0, 1); return u * u * (3 - 2 * u); };
+  const pmusAt = t => pPlateau * (t < b.holdUntil ? smooth(t / b.rise) : 1 - smooth((t - b.holdUntil) / b.relax));
+  const out = [];
+  let V = frc, work = 0, vPeak = frc;
+  for (let t = 0; t <= b.duration + 1e-9; t += b.dt) {
+    const pmus = pmusAt(t);
+    const pel = lungPressure(V, s.lungCompliance, p);
+    const ppl = chestWallPressure(V, s.chestWallCompliance, p, s.chestWallLoad) - pmus;
+    const pa = ppl + pel;
+    const flow = -pa / b.raw;
+    out.push({ t, volume: V, pmus, pel, ppl, pa, flow, work });
+    const dV = flow * b.dt;
+    if (dV > 0) work += systemPressure(V + dV / 2, s, p) * dV;
+    V += dV; vPeak = Math.max(vPeak, V);
+  }
+  return { frc, vEnd, pPlateau, vPeak, work, workJ: work * 0.0981, samples: out };
+}
+
 const preset = (label, o) => ({ label, ...DEFAULT_SETTINGS, ...o });
 export const PRESETS = {
   normal: preset('Healthy adult', {}),

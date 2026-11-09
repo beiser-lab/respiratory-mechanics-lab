@@ -1,5 +1,5 @@
-import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=12';
-import { interpret } from './pft-interpret.js?v=12';
+import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=13';
+import { interpret } from './pft-interpret.js?v=13';
 
 const $ = id => document.getElementById(id);
 const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666' };
@@ -160,8 +160,14 @@ function renderInterpretation() {
 }
 
 function renderPleth(r) {
-  const P1 = 969, dP = 10, dV = r.frc * dP / (P1 - dP);
-  $('pleth-example').innerHTML = `The patient sits in a sealed box and pants against a closed shutter at the end of a normal breath (FRC). No air moves, so the gas in the chest obeys Boyle's law: P<sub>1</sub>V<sub>1</sub> = P<sub>2</sub>V<sub>2</sub>. With no airflow, mouth pressure equals alveolar pressure. The starting pressure of the alveolar gas is atmospheric pressure minus water vapor (about 1033 − 64 = ${P1} cmH₂O). When this patient pulls in and mouth pressure falls ${dP} cmH₂O, the chest gas expands by ${Math.round(dV * 1000)} mL, which the box detects as a pressure rise. Solving, V<sub>1</sub> = ΔV·(P<sub>1</sub> − ΔP)/ΔP = ${(dV * (P1 - dP) / dP).toFixed(2)} L, the FRC. Then RV = FRC − ERV and TLC = FRC + IC. (You will not be asked to do this calculation on the exam.)`;
+  // Same simplified algebra as the course slides: drop the tiny dP*dV term and use Patm for P1.
+  const Patm = 1033, dP = 10, dV = -r.frc * dP / Patm; // L; an expiratory push compresses the chest gas
+  const mL = Math.round(dV * 1000), sub = x => `<sub>${x}</sub>`;
+  $('pleth-example').innerHTML = `<p>The patient sits in a sealed box and pants against a closed shutter at the end of a normal breath, so the starting volume is FRC. No air moves, so the gas in the chest obeys Boyle's law, P${sub(1)}V${sub(1)} = P${sub(2)}V${sub(2)}, and mouth pressure equals alveolar pressure. P${sub(1)} is atmospheric pressure and V${sub(1)} is FRC, the unknown. Pushing against the shutter raises mouth pressure by ΔP and compresses the chest gas by ΔV. The patient gets slightly smaller, so the box gas has more room and box pressure falls; the box is calibrated to turn that fall into ΔV.</p>
+<p class="eq">P${sub(1)}V${sub(1)} = (P${sub(1)} + ΔP)(V${sub(1)} + ΔV)</p>
+<p>Multiply out and cancel P${sub(1)}V${sub(1)} from both sides. ΔP·ΔV is a small number times a small number, so drop it. That leaves 0 = ΔP·V${sub(1)} + ΔV·P${sub(1)}, so</p>
+<p class="eq">FRC = −(ΔV / ΔP) · P${sub('atm')}</p>
+<p>For this patient, a push that raises mouth pressure ${dP} cmH₂O compresses the chest gas by ${Math.abs(mL)} mL: FRC = −(${(dV).toFixed(3).replace('-', '−')} L / ${dP} cmH₂O) × ${Patm} cmH₂O = ${(-dV / dP * Patm).toFixed(2)} L. Then RV = FRC − ERV and TLC = FRC + IC. (Commercial body boxes use the pressure of dry alveolar gas, atmospheric minus water vapor, about 969 cmH₂O, which changes the answer by about 6%. You will not be asked to do this calculation on the exam.)</p>`;
 }
 
 function draw() {

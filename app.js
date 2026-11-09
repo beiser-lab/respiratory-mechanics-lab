@@ -1,4 +1,4 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure } from './model.js?v=12';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=13';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944' };
@@ -41,7 +41,7 @@ const VOLUME_METRICS = [
   ['rv', 'Residual volume', 'L', 2], ['vc', 'Vital capacity', 'L', 2], ['erv', 'Expiratory reserve volume', 'L', 2],
 ];
 const MECH_METRICS = [
-  ['lungRecoilAtFrc', 'Lung recoil (inward)', 'cmH₂O', 1], ['chestWallRecoilAtFrc', 'Chest wall recoil (outward if −)', 'cmH₂O', 1],
+  ['lungRecoilAtFrc', 'Lung elastic recoil, Pel = Ptp', 'cmH₂O', 1], ['chestWallRecoilAtFrc', 'Pleural pressure, Ppl', 'cmH₂O', 1],
   ['lungCompliance', 'Lung compliance, CL', 'L/cmH₂O', 3], ['chestWallCompliance', 'Chest wall compliance, Ccw', 'L/cmH₂O', 3],
   ['systemCompliance', 'Respiratory system, Crs', 'L/cmH₂O', 3], ['chestWallRestingVolume', 'Chest wall resting volume', 'L', 2],
 ];
@@ -70,9 +70,11 @@ function chart(id) {
   for (let p = AX.pMin; p <= AX.pMax; p += 10) { ctx.strokeStyle = p === 0 ? colors.axis : colors.grid; ctx.lineWidth = p === 0 ? 1.4 : 1; ctx.beginPath(); ctx.moveTo(X(p), top); ctx.lineTo(X(p), bottom); ctx.stroke(); ctx.fillStyle = colors.text; ctx.textAlign = 'center'; ctx.fillText(p, X(p), bottom + 16); }
   ctx.lineWidth = 1;
   ctx.fillStyle = colors.text; ctx.textAlign = 'left'; ctx.fillText('Volume (L)', 3, 14);
-  ctx.textAlign = 'center'; ctx.fillText('Relaxation pressure (cmH₂O): transpulmonary for lung, transmural for chest wall, airway for the system', (left + right) / 2, h - 6);
+  ctx.textAlign = 'center'; ctx.fillText('Relaxation pressure (cmH₂O) · lung: Ptp = PA − Ppl · chest wall: Ppl · system: Prs', (left + right) / 2, h - 6);
   ctx.font = '600 11px -apple-system, sans-serif'; ctx.fillStyle = '#4d4d4d';
-  ctx.fillText('← Expanding (outward) recoil', (left + X(0)) / 2, top - 12); ctx.fillText('Collapsing (inward) recoil →', (X(0) + right) / 2, top - 12);
+  ctx.fillText('← Compression (inward)', (left + X(0)) / 2, top - 18); ctx.fillText('Expansion (outward) →', (X(0) + right) / 2, top - 18);
+  ctx.font = '10px -apple-system, sans-serif'; ctx.fillStyle = colors.text;
+  ctx.fillText('held below its rest volume, so it springs back out', (left + X(0)) / 2, top - 5); ctx.fillText('held above its rest volume, so it recoils back in', (X(0) + right) / 2, top - 5);
   ctx.font = '10px -apple-system, sans-serif';
   const clip = fn => { ctx.save(); ctx.beginPath(); ctx.rect(left, top, right - left, bottom - top); ctx.clip(); fn(); ctx.restore(); };
   const line = (pts, color, { dashed = false, width = 2.2, alpha = 1 } = {}) => clip(() => {
@@ -108,8 +110,10 @@ function draw() {
   g.dot(a.chestWallRecoilAtFrc, a.frc, colors.chestWall); g.dot(a.lungRecoilAtFrc, a.frc, colors.lung); g.dot(0, a.frc, colors.system);
   // Probe: at the chosen volume, show each pressure and their sum.
   const pr = probe(probeVolume, settings);
-  g.ctx.save(); g.ctx.globalAlpha = 0.9; g.hline(probeVolume, '#800000', '', [2, 3]); g.ctx.restore();
-  g.dot(pr.chestWall, probeVolume, colors.chestWall, 4); g.dot(pr.lung, probeVolume, colors.lung, 4); g.dot(pr.system, probeVolume, colors.system, 4);
+  if (!breath) {
+    g.ctx.save(); g.ctx.globalAlpha = 0.9; g.hline(probeVolume, '#800000', '', [2, 3]); g.ctx.restore();
+    g.dot(pr.chestWall, probeVolume, colors.chestWall, 4); g.dot(pr.lung, probeVolume, colors.lung, 4); g.dot(pr.system, probeVolume, colors.system, 4);
+  } else drawBreath(g, a);
   // Curve labels at fixed volumes, placed where the curves are well separated.
   const label = (pts, V, text, color, side) => {
     const p = pts.reduce((b, q) => Math.abs(q.y - V) < Math.abs(b.y - V) ? q : b, pts[0]); if (!p || p.x < AX.pMin || p.x > AX.pMax) return;
@@ -129,13 +133,67 @@ function draw() {
     g.ctx.fillText(`Chest wall at rest (${pctVC(rest, a)}% VC)`, g.X(0) - 10, g.Y(rest) + 4); g.ctx.restore();
   }
 
+  renderBreathPanel();
   renderMetrics('metrics-volumes', VOLUME_METRICS, a);
   renderMetrics('metrics-mech', MECH_METRICS, a);
   for (const [k, s] of Object.entries(sliders)) $(s.out).textContent = s.fmt(settings[k]);
   $('probe-out').textContent = `${probeVolume.toFixed(2)} L · ${pctVC(probeVolume, a)}% VC`;
   const f = x => !Number.isFinite(x) ? (x > 0 ? '+∞' : '−∞') : (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1);
-  $('probe-sum').innerHTML = `At ${probeVolume.toFixed(2)} L: <b class="lung">P<sub>L</sub> ${f(pr.lung)}</b> + <b class="cw">P<sub>cw</sub> ${f(pr.chestWall)}</b> = <b class="rs">P<sub>rs</sub> ${f(pr.system)}</b> cmH₂O`
+  $('probe-sum').innerHTML = `At ${probeVolume.toFixed(2)} L: <b class="lung">P<sub>tp</sub> ${f(pr.lung)}</b> + <b class="cw">P<sub>pl</sub> ${f(pr.chestWall)}</b> = <b class="rs">P<sub>rs</sub> ${f(pr.system)}</b> cmH₂O`
+    + `<br><span class="hint">Muscles relaxed, airway held shut at this volume: P<sub>tp</sub> is the lung's elastic recoil (P<sub>el</sub>), P<sub>pl</sub> is the chest wall's recoil, and their sum is the alveolar pressure, P<sub>A</sub> = P<sub>rs</sub>.</span>`
     + `<br><span class="hint">Series check at FRC: 1 / (1/${a.lungCompliance.toFixed(3)} + 1/${a.chestWallCompliance.toFixed(3)}) = ${a.seriesCheck.toFixed(3)} L/cmH₂O, the slope of the combined curve.</span>`;
+}
+
+// ---------- one breath ----------
+// Ppl falls, PA = Ppl + Pel goes below zero, air flows in, volume rises, Pel rises, and flow stops
+// when PA is back to zero. The shaded area under the combined curve is the elastic work.
+let breath = null, timer = 0;
+const healthyBreath = simulateBreath(DEFAULT_SETTINGS);
+function stopBreath() { clearTimeout(timer); breath = null; }
+function startBreath() {
+  clearTimeout(timer);
+  breath = { sim: simulateBreath(settings), t: 0, start: performance.now(), done: false };
+  const step = () => {
+    breath.t = Math.max(0, Math.min(BREATH.duration, (performance.now() - breath.start) / 1000));
+    breath.done = breath.t >= BREATH.duration;
+    draw(); if (!breath.done) timer = setTimeout(step, 30);
+  };
+  step();
+}
+const breathSample = () => breath.sim.samples[Math.min(breath.sim.samples.length - 1, Math.round(breath.t / BREATH.dt))];
+function drawBreath(g, a) {
+  const x = breathSample(), sim = breath.sim, ctx = g.ctx;
+  const vTop = breath.t >= BREATH.holdUntil ? sim.vPeak : Math.max(sim.frc, x.volume);
+  if (vTop > sim.frc + 0.005) { // elastic work: area between the combined curve and Prs = 0
+    ctx.save(); ctx.beginPath(); ctx.moveTo(g.X(0), g.Y(sim.frc));
+    for (let i = 0; i <= 40; i++) { const V = sim.frc + (vTop - sim.frc) * i / 40; ctx.lineTo(g.X(systemPressure(V, settings, PARAMS)), g.Y(V)); }
+    ctx.lineTo(g.X(0), g.Y(vTop)); ctx.closePath(); ctx.fillStyle = 'rgba(128,0,0,0.22)'; ctx.fill();
+    ctx.restore();
+  }
+  ctx.save(); ctx.globalAlpha = 0.9; g.hline(x.volume, '#800000', '', [2, 3]); ctx.restore();
+  const pcw = x.ppl + x.pmus;
+  g.arrow(pcw, x.ppl, x.volume + 0.09, '#4d4d4d');
+  if (Math.abs(g.X(pcw) - g.X(x.ppl)) > 30) { ctx.fillStyle = '#4d4d4d'; ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('muscles', (g.X(pcw) + g.X(x.ppl)) / 2, g.Y(x.volume + 0.09) - 6); }
+  g.dot(pcw, x.volume, colors.chestWall, 3); g.dot(x.ppl, x.volume, colors.chestWall, 5); g.dot(x.pel, x.volume, colors.lung, 5);
+  ctx.fillStyle = colors.chestWall; ctx.font = '600 10px -apple-system, sans-serif'; ctx.textAlign = 'right'; ctx.fillText('Ppl', g.X(x.ppl) - 8, g.Y(x.volume) + 4);
+  ctx.fillStyle = colors.lung; ctx.textAlign = 'left'; ctx.fillText('Pel', g.X(x.pel) + 8, g.Y(x.volume) + 4);
+}
+function renderBreathPanel() {
+  const f = (v, d = 1) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d);
+  const x = breath ? breathSample() : { ppl: analyze(settings).chestWallRecoilAtFrc, pel: analyze(settings).lungRecoilAtFrc, pa: 0, flow: 0, volume: analyze(settings).frc };
+  const frc = breath ? breath.sim.frc : x.volume;
+  const flowText = Math.abs(x.flow) < 0.02 ? 'no flow' : `${Math.abs(x.flow).toFixed(2)} L/s ${x.flow > 0 ? 'in' : 'out'}`;
+  const chip = (label, value, cls = '') => `<div class="chip ${cls}"><span>${label}</span><b>${value}</b></div>`;
+  $('breath-chain').innerHTML = [
+    chip('Pleural pressure, P<sub>pl</sub>', f(x.ppl) + ' cmH₂O', 'cw'),
+    chip('Alveolar, P<sub>A</sub> = P<sub>pl</sub> + P<sub>el</sub>', f(x.pa) + ' cmH₂O', 'rs'),
+    chip('Airflow', flowText),
+    chip('Volume above FRC', f(x.volume - frc, 2) + ' L'),
+    chip('Lung recoil, P<sub>el</sub>', f(x.pel) + ' cmH₂O', 'lung'),
+  ].join('<span class="chain-arrow">→</span>');
+  const s = breath ? breath.sim : simulateBreath(settings), h = healthyBreath;
+  const cmp = Math.abs(s.work - h.work) < 0.02 ? 'the same as healthy' : `${s.work > h.work ? 'more' : 'less'} than the healthy ${h.work.toFixed(2)}`;
+  $('breath-note').innerHTML = `For a ${BREATH.tidalVolume} L breath from this FRC, the muscles must lower pleural pressure to ${f(s.samples.find(q => q.t >= BREATH.holdUntil - 1e-9).ppl)} cmH₂O. Elastic work (the shaded area under the combined curve): ${s.work.toFixed(2)} cmH₂O·L (${s.workJ.toFixed(3)} J), ${cmp}.`;
 }
 
 function matchPreset() {
@@ -143,7 +201,7 @@ function matchPreset() {
   return hit ? hit[0] : 'custom';
 }
 function setQuestion(key) { const [t, q] = QUESTIONS[key] || QUESTIONS.custom; $('question-title').textContent = t; $('question').textContent = q; }
-function loadPreset(key) { settings = { ...DEFAULT_SETTINGS, ...PRESETS[key] }; delete settings.label; writeSliders(); setQuestion(key); draw(); }
+function loadPreset(key) { settings = { ...DEFAULT_SETTINGS, ...PRESETS[key] }; delete settings.label; writeSliders(); setQuestion(key); stopBreath(); draw(); }
 
 function exportCsv() {
   const rows = [['volume_L', 'lung_cmH2O', 'chest_wall_cmH2O', 'system_cmH2O', 'healthy_lung_cmH2O', 'healthy_chest_wall_cmH2O', 'healthy_system_cmH2O']];
@@ -162,12 +220,13 @@ function exportCsv() {
 $('preset').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
 $('load').addEventListener('click', () => loadPreset($('preset').value));
 $('reset').addEventListener('click', () => { $('preset').value = 'normal'; loadPreset('normal'); });
-for (const s of Object.values(sliders)) $(s.el).addEventListener('input', () => { readSliders(); setQuestion(matchPreset()); draw(); });
+for (const s of Object.values(sliders)) $(s.el).addEventListener('input', () => { readSliders(); setQuestion(matchPreset()); stopBreath(); draw(); });
 $('overlay').addEventListener('change', draw); $('show-limits').addEventListener('change', draw);
-$('probe').addEventListener('input', e => { probeVolume = Number(e.target.value); draw(); });
+$('probe').addEventListener('input', e => { probeVolume = Number(e.target.value); stopBreath(); draw(); });
+$('breathe').addEventListener('click', startBreath);
 const canvas = $('pv');
-const fromPointer = e => { const r = canvas.getBoundingClientRect(); const h = Number(canvas.dataset.logicalHeight); const top = 34, bottom = h - 40; const v = AX.vMin + (bottom - (e.clientY - r.top)) / (bottom - top) * (AX.vMax - AX.vMin); probeVolume = Math.min(6.6, Math.max(1.3, v)); $('probe').value = probeVolume; draw(); };
-canvas.addEventListener('pointermove', fromPointer); canvas.addEventListener('pointerdown', fromPointer);
+const fromPointer = e => { if (breath && !breath.done) return; const r = canvas.getBoundingClientRect(); const h = Number(canvas.dataset.logicalHeight); const top = 34, bottom = h - 40; const v = AX.vMin + (bottom - (e.clientY - r.top)) / (bottom - top) * (AX.vMax - AX.vMin); probeVolume = Math.min(6.6, Math.max(1.3, v)); $('probe').value = probeVolume; draw(); };
+canvas.addEventListener('pointermove', e => { if (breath) return; fromPointer(e); }); canvas.addEventListener('pointerdown', e => { stopBreath(); fromPointer(e); });
 $('export').addEventListener('click', exportCsv);
 window.addEventListener('resize', draw);
 loadPreset('normal');
