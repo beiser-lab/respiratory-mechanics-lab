@@ -1,4 +1,5 @@
-import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=5';
+import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=6';
+import { interpret } from './pft-interpret.js?v=6';
 
 const $ = id => document.getElementById(id);
 const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666' };
@@ -125,7 +126,7 @@ function drawVolumeTime(sm, tl) {
 // ---------- report ----------
 const ROWS = [
   ['Plethysmography'], ['tlc', 'TLC (L)', 2], ['frc', 'FRC (L)', 2], ['rv', 'RV (L)', 2],
-  ['Spirometry'], ['fvc', 'FVC (L)', 2], ['fev1', 'FEV1 (L)', 2], ['ratio', 'FEV1/FVC (%)', 0], ['fef2575', 'FEF 25–75% (L/s)', 2], ['pef', 'PEF (L/s)', 2],
+  ['Spirometry'], ['fvc', 'FVC (L)', 2], ['fev1', 'FEV1 (L)', 2], ['ratio', 'FEV1/FVC', 2], ['fef2575', 'FEF 25–75% (L/s)', 2], ['pef', 'PEF (L/s)', 2],
   ['Slow vital capacity'], ['svc', 'SVC (L)', 2], ['ic', 'IC (L)', 2], ['erv', 'ERV (L)', 2],
   ['Diffusion'], ['dlco', 'DLCO unc (mL/min/mmHg)', 1], ['dlcoCorrected', 'DLCO cor for Hb', 1], ['hemoglobin', 'Hemoglobin (g/dL)', 1],
 ];
@@ -135,10 +136,11 @@ function renderReport(r) {
     let html = '<table><thead><tr><th></th><th>Actual</th><th>Pred</th><th>%Pred</th></tr></thead><tbody>';
     for (const row of rows) {
       if (row.length === 1) { html += `<tr class="section"><th colspan="4">${row[0]}</th></tr>`; continue; }
-      const [k, label, dp] = row, isRatio = k === 'ratio';
-      const a = isRatio ? 100 * r[k] : r[k], p = isRatio ? 100 * PREDICTED[k] : PREDICTED[k], pc = 100 * r[k] / PREDICTED[k];
-      const flag = k === 'hemoglobin' ? (r[k] < 12 || r[k] > 18) : isRatio ? r[k] < 0.7 : (pc < 80 || pc > 120);
-      html += `<tr class="${flag && done ? 'flag' : ''}"><td>${label}</td><td>${done ? a.toFixed(dp) : '…'}</td><td>${p.toFixed(dp)}</td><td>${done ? Math.round(pc) : ''}</td></tr>`;
+      const [k, label, dp] = row, isRatio = k === 'ratio', noPct = isRatio || k === 'hemoglobin';
+      const a = isRatio ? r[k] : r[k], p = PREDICTED[k], pc = 100 * r[k] / PREDICTED[k];
+      const low = k === 'fef2575' ? 65 : 80;
+      const flag = k === 'hemoglobin' ? (r[k] < 13 || r[k] > 18) : isRatio ? r[k] < 0.7 : (pc < low || pc > 120);
+      html += `<tr class="${flag && done ? 'flag' : ''}"><td>${label}</td><td>${done ? a.toFixed(dp) : '…'}</td><td>${p.toFixed(dp)}</td><td>${done && !noPct ? Math.round(pc) : ''}</td></tr>`;
     }
     return html + '</tbody></table>';
   };
@@ -146,22 +148,33 @@ function renderReport(r) {
   $('report').innerHTML = table(ROWS.slice(0, split)) + table(ROWS.slice(split));
 }
 
+function renderInterpretation() {
+  const done = tNow >= (timeline?.end ?? 0), box = $('interp-box');
+  if (!done) { box.open = false; box.classList.add('waiting'); return; }
+  box.classList.remove('waiting');
+  const p = PFT_PRESETS[presetKey];
+  const pre = p.bronchodilator && $('bronchodilator').checked && matchPreset() === presetKey ? simulate({ ...p.settings, ...(p.supine && $('supine').checked ? p.supine : {}) }).report : null;
+  const out = interpret(sim.report, PREDICTED, { pre });
+  $('interp-steps').innerHTML = out.steps.map(x => `<li><strong>${x.q}</strong><br>${x.a}</li>`).join('');
+  $('interp-result').innerHTML = `<strong>${out.pattern}.</strong> ${out.consistent}`;
+}
+
 function renderPleth(r) {
-  const P1 = 1033, dP = 10, dV = r.frc * dP / (P1 - dP);
-  $('pleth-example').innerHTML = `The patient sits in a sealed box and pants against a closed shutter at the end of a normal breath (FRC). No air moves, so the gas in the chest obeys Boyle's law: P<sub>1</sub>V<sub>1</sub> = P<sub>2</sub>V<sub>2</sub>. When this patient pulls in and mouth pressure falls ${dP} cmH₂O below atmospheric (about ${P1} cmH₂O), the chest gas expands by ${Math.round(dV * 1000)} mL, which the box detects as a pressure rise. Solving, V<sub>1</sub> = ΔV·(P<sub>1</sub> − ΔP)/ΔP = ${(dV * (P1 - dP) / dP).toFixed(2)} L, the FRC. Then RV = FRC − ERV and TLC = FRC + IC. (You will not be asked to do this calculation on the exam.)`;
+  const P1 = 969, dP = 10, dV = r.frc * dP / (P1 - dP);
+  $('pleth-example').innerHTML = `The patient sits in a sealed box and pants against a closed shutter at the end of a normal breath (FRC). No air moves, so the gas in the chest obeys Boyle's law: P<sub>1</sub>V<sub>1</sub> = P<sub>2</sub>V<sub>2</sub>. With no airflow, mouth pressure equals alveolar pressure. The starting pressure of the alveolar gas is atmospheric pressure minus water vapor (about 1033 − 64 = ${P1} cmH₂O). When this patient pulls in and mouth pressure falls ${dP} cmH₂O, the chest gas expands by ${Math.round(dV * 1000)} mL, which the box detects as a pressure rise. Solving, V<sub>1</sub> = ΔV·(P<sub>1</sub> − ΔP)/ΔP = ${(dV * (P1 - dP) / dP).toFixed(2)} L, the FRC. Then RV = FRC − ERV and TLC = FRC + IC. (You will not be asked to do this calculation on the exam.)`;
 }
 
 function draw() {
   sim = simulate(settings); timeline = buildTimeline(sim);
   if (!playing) tNow = Infinity;
-  drawTracing(timeline, sim.report); drawFlowVolume(sim, timeline); drawVolumeTime(sim, timeline); renderReport(sim.report); renderPleth(sim.report);
+  drawTracing(timeline, sim.report); drawFlowVolume(sim, timeline); drawVolumeTime(sim, timeline); renderReport(sim.report); renderInterpretation(); renderPleth(sim.report);
   for (const [k, m] of Object.entries(SLIDERS)) $('o-' + k).textContent = m.fmt(settings[k]);
 }
 function frame(now) {
   if (!playing) return;
   tNow += (now - lastFrame) / 1000 * 2; lastFrame = now; // 2x real time
   if (tNow >= timeline.end) { playing = false; tNow = Infinity; $('run').textContent = '▶ Run the test'; }
-  drawTracing(timeline, sim.report); drawFlowVolume(sim, timeline); drawVolumeTime(sim, timeline); renderReport(sim.report);
+  drawTracing(timeline, sim.report); drawFlowVolume(sim, timeline); drawVolumeTime(sim, timeline); renderReport(sim.report); renderInterpretation();
   if (playing) requestAnimationFrame(frame);
 }
 function run() {
