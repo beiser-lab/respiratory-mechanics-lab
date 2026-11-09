@@ -18,7 +18,7 @@
 // DLCO (Roughton & Forster 1957):  1/DLCO = 1/DM + 1/(theta * Vc), theta proportional to Hb.
 // Hb adjustment (ERS/ATS 2017, adult male): DLCOcorr = DLCO * (10.22 + Hb) / (1.7 * Hb).
 
-import { analyze, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=9';
+import { analyze, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=10';
 
 export const PFT_DEFAULTS = Object.freeze({
   ...STATIC_DEFAULTS,
