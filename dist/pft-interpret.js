@@ -8,7 +8,8 @@
 // response is a rise in FEV1 or FVC of more than 10% of predicted (also the ERS/ATS 2022 criterion).
 // Clinical labs use lower limits of normal from reference equations instead of fixed cutoffs.
 
-const pct = (r, p, k) => 100 * r[k] / p[k];
+// Percents are rounded before they are compared with a cutoff, so the rules match the numbers on the report.
+const pct = (r, p, k) => Math.round(100 * r[k] / p[k]);
 const f0 = x => Math.round(x);
 const EXTRA = ' <span class="extra">(beyond the course flowchart)</span>';
 
@@ -35,8 +36,9 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   if (small) vol += 'small lungs (restriction).';
   else if (big) vol += 'big lungs (hyperinflation).';
   else vol += 'TLC is normal.';
-  if (stepUp) vol += ` The volumes step up from TLC to FRC to RV${obstruction ? ' (here from air trapping)' : ''}.`;
-  else if (rv > 120) vol += ' RV is high: air trapping.';
+  // "Step-up" is kept for the weakness pattern; in obstruction the same ordering is air trapping (STU-06).
+  if (stepUp && small && !obstruction) vol += ' The volumes step up: TLC low, FRC near normal, RV high.';
+  else if (rv > 120) vol += obstruction && stepUp ? ' RV rises the most: air trapping.' : ' RV is high: air trapping.';
   steps.push({ q: 'Look at lung volumes: big lungs or small lungs? (TLC below 80% is small; above 120% is big)', a: vol });
 
   // 2. FEV1/FVC
@@ -46,7 +48,7 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   let loop;
   if (upperAirway) loop = 'No. Both limbs are cut off flat: peak expiratory flow is blunted at the very start of exhalation and inspiratory flow is capped too, so the loop is squared off. <span class="extra">(Extra: FEV1/PEF is ' + empey.toFixed(1) + ' mL per L/min; above 10 also suggests it.)</span>';
   else if (obstruction) loop = 'No. The expiratory limb is scooped: flow falls off quickly after the peak and stays low through the rest of the breath.';
-  else if (small && !stepUp && ratio > 80) loop = 'No. The loop is tall and narrow: small volume, but flow is normal or high for that volume.';
+  else if (small && !stepUp && ratio > 80) loop = 'No. The loop is tall and narrow: small volume, but flow is normal or high for that volume. Compare at the same lung volume, not the same volume exhaled: tick \u201cFlow-volume loop on absolute lung volume\u201d.';
   else if (small && stepUp && !obstruction) loop = 'No. The loop is small, with low peak flows in both directions. The peak is blunted too, but the small TLC and high RV point to weak muscles; a fixed tracheal obstruction blunts the loop with normal lung volumes.';
   else if (small || fvc < 80) loop = 'No. The loop is small, with low peak flows in both directions.';
   else loop = 'Yes, normal shape.';
@@ -60,7 +62,7 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   if (pre) {
     const dFev1 = 100 * (r.fev1 - pre.fev1) / p.fev1, dFvc = 100 * (r.fvc - pre.fvc) / p.fvc;
     reversible = dFev1 > 10 || dFvc > 10;
-    const mL = x => `${x >= 0 ? '+' : '−'}${Math.abs(Math.round(x * 1000))} mL`, pp = x => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(0)}% of predicted`;
+    const mL = x => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(2)} L`, pp = x => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(0)}% of predicted`;
     steps.push({ q: 'Is there a bronchodilator response? (FEV1 or FVC up more than 10% of predicted)', a: `FEV1 ${pre.fev1.toFixed(2)} → ${r.fev1.toFixed(2)} L (${mL(r.fev1 - pre.fev1)}, ${pp(dFev1)}); FVC ${pre.fvc.toFixed(2)} → ${r.fvc.toFixed(2)} L (${pp(dFvc)}). ${reversible ? 'Yes, a significant response.' : 'No significant response.'}` });
   }
 
@@ -104,7 +106,7 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
     if (lowDL && !lowDLc) consistent = 'Normal spirometry and lung volumes. DLCO is low only because hemoglobin is low (anemia); the corrected value is normal.';
     else if (lowDLc) consistent = 'Normal spirometry and lung volumes with a low DLCO: think of the pulmonary circulation (pulmonary vascular disease, emboli) or early parenchymal disease.' + EXTRA;
     else if (erv < 70 && frc < 80) { pattern = 'Normal spirometry, low FRC and ERV'; consistent = 'Spirometry and TLC are normal, but FRC and ERV are low: the pattern of obesity before TLC falls.' + EXTRA; }
-    else consistent = 'Normal study. If symptoms still suggest asthma, the next test is bronchoprovocation.';
+    else consistent = 'Normal study. If symptoms still suggest asthma, the next test is bronchoprovocation (methacholine challenge).';
   }
   if (custom) consistent += ' <span class="extra">Custom patient: these rules assume that lung recoil, airways, and DLCO change together as they do in real diseases. Moving one slider on its own may not match any one disease.</span>';
   return { steps, pattern, consistent };

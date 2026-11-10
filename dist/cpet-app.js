@@ -1,4 +1,4 @@
-import { simulate, interpretCPET, CPET_PRESETS, CPET_DEFAULTS, predicted } from './cpet-model.js?v=21';
+import { simulate, interpretCPET, CPET_PRESETS, CPET_DEFAULTS, predicted } from './cpet-model.js?v=22';
 
 const $ = id => document.getElementById(id);
 const colors = { o2: '#800000', co2: '#155f83', hr: '#a65e00', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', work: 'rgba(128,128,128,0.10)' };
@@ -49,7 +49,7 @@ function chart(id, { xMin, xMax, yMin, yMax, xLabel, yLabel, xTicks, yTicks, y2 
     const YY = axis2 ? Y2 : Y; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.globalAlpha = alpha; ctx.setLineDash(dashed ? [5, 4] : []); ctx.beginPath();
     pts.forEach((p, i) => i ? ctx.lineTo(X(p.x), YY(p.y)) : ctx.moveTo(X(p.x), YY(p.y))); ctx.stroke(); });
   const vline = (x, label) => clip(() => { ctx.strokeStyle = '#9a9a9a'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(X(x), top); ctx.lineTo(X(x), bottom); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#4d4d4d'; ctx.font = '600 10px -apple-system, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(label, X(x) + 4, top + 11); });
-  const fill = (pts, color) => clip(() => { ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(X(pts[0].x), Y(yMin)); pts.forEach(p => ctx.lineTo(X(p.x), Y(p.y))); ctx.lineTo(X(pts.at(-1).x), Y(yMin)); ctx.closePath(); ctx.fill(); });
+  const fill = (pts, color) => clip(() => { ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(X(pts[0].x), Y(yMin)); pts.forEach(p => ctx.lineTo(X(p.x), Y(p.y))); ctx.lineTo(X(pts[pts.length - 1].x), Y(yMin)); ctx.closePath(); ctx.fill(); });
   return { ctx, X, Y, Y2, line, vline, fill, clip, left, right, top, bottom };
 }
 
@@ -62,7 +62,7 @@ function markers(g, r, { rcp = false } = {}) {
   if (tNow >= r.stopAt) g.vline(r.stopAt / 60, 'Peak');
 }
 function drawAll() {
-  const r = sim, overlay = $('overlay').checked, tMax = Math.max(16, Math.ceil(Math.max(r.series.at(-1).t, healthy.series.at(-1).t) / 60) + 1);
+  const r = sim, overlay = $('overlay').checked, tMax = Math.max(16, Math.ceil(Math.max(r.series[r.series.length - 1].t, healthy.series[healthy.series.length - 1].t) / 60) + 1);
   const xTicks = Array.from({ length: Math.floor(tMax / 2) + 1 }, (_, i) => 2 * i);
   const vis = visible(r.series);
   // 1. VO2, VCO2, HR.
@@ -101,7 +101,7 @@ const ROWS = [
   ['Gas exchange efficiency'], ['veVo2', 'V̇E/V̇O₂', 0, null], ['veVco2', 'V̇E/V̇CO₂', 0, null],
 ];
 function renderReport() {
-  const r = sim, done = tNow >= r.series.at(-1).t, show = (v, dp) => done && v != null ? v.toFixed(dp) : '…';
+  const r = sim, done = tNow >= r.series[r.series.length - 1].t, show = (v, dp) => done && v != null ? v.toFixed(dp) : '…';
   let html = '<table><thead><tr><th></th><th>Rest</th><th>AT</th><th>Peak</th><th>Pred</th><th>Peak %Pred</th></tr></thead><tbody>';
   for (const row of ROWS) {
     if (row.length === 1) { html += `<tr class="section"><th colspan="6">${row[0]}</th></tr>`; continue; }
@@ -121,7 +121,7 @@ function renderReport() {
   $('report').innerHTML = html;
 }
 function renderInterpretation() {
-  const done = tNow >= sim.series.at(-1).t, box = $('interp-box');
+  const done = tNow >= sim.series[sim.series.length - 1].t, box = $('interp-box');
   if (!done) { box.open = false; box.classList.add('waiting'); return; }
   box.classList.remove('waiting');
   const out = interpretCPET(sim);
@@ -134,7 +134,7 @@ function update() { sim = simulate(settings); if (!playing) tNow = Infinity; ren
 function frame(now) {
   if (!playing) return;
   tNow += (now - lastFrame) / 1000 * SPEED; lastFrame = now;
-  if (tNow >= sim.series.at(-1).t) { playing = false; tNow = Infinity; $('run').textContent = '▶ Run the test'; }
+  if (tNow >= sim.series[sim.series.length - 1].t) { playing = false; tNow = Infinity; $('run').textContent = '▶ Run the test'; }
   render(); if (playing) requestAnimationFrame(frame);
 }
 function run() {
@@ -153,7 +153,7 @@ function exportCsv() {
   const rows = [keys, ...sim.series.filter((_, i) => i % 5 === 0).map(p => keys.map(k => typeof p[k] === 'number' ? +p[k].toFixed(3) : p[k]))];
   rows.push([], ['settings', JSON.stringify(settings).replaceAll(',', ';')]);
   const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([rows.map(x => x.join(',')).join('\n')], { type: 'text/csv' })), download: 'cpet.csv' });
-  link.click(); URL.revokeObjectURL(link.href);
+  document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 $('preset').innerHTML = Object.entries(CPET_PRESETS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');

@@ -1,5 +1,5 @@
-import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=21';
-import { interpret } from './pft-interpret.js?v=21';
+import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=22';
+import { interpret } from './pft-interpret.js?v=22';
 
 const $ = id => document.getElementById(id);
 const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666' };
@@ -7,10 +7,10 @@ const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestW
 const QUESTIONS = {
   normal: ['Read it like a consultant', 'Start with lung volumes: big lungs or small lungs? Then FEV1/FVC: is there obstruction? Then the shape of the flow-volume loop, then DLCO: is it preserved? If a bronchodilator was given, did it help? Load a patient and work through the same questions.'],
   emphysema: ['72-year-old former smoker', 'Big lungs or small lungs? Rank TLC, FRC, and RV by how far each rises. Why does RV rise the most? Is FEV1/FVC below 70%? Why is DLCO low here but not in asthma? Look for the scoop on the flow-volume loop and the long tail on the volume-time curve. Then check after bronchodilator: does it reverse?'],
-  asthma: ['Obstruction that reverses', 'Notice the air trapping before treatment (RV and FRC). Now check the box for after bronchodilator. How much do FEV1 and FVC change, in liters and as a percent of predicted? What happens to RV? Why is DLCO normal or high even though spirometry looks like emphysema?'],
-  ild: ['Small, stiff lungs', 'TLC and FVC fall (RV only a little), but FEV1/FVC is normal or high. Use the flow-volume loop to explain why: at any given lung volume, is flow higher or lower than normal? What does the low DLCO add?'],
-  obesity: ['A load on the chest wall', 'TLC, FRC, and RV all fall (RV only a little), but one volume falls far more than the others. Which is it, and why? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
-  neuromuscular: ['Small Group 4: weak muscles', 'Compare TLC, FRC, and RV as percent predicted. What is the step-up pattern, and why does FRC stay near normal? Now check tested supine. What happens to TLC, RV, and the flows, and why?'],
+  asthma: ['Obstruction that reverses', 'Notice the air trapping before treatment (RV and FRC). Now check the box for after bronchodilator. Compare the change in FEV1 and FVC, in liters and in points of percent predicted (shown under the report). Which number does the response rule use? What happens to RV? Why is DLCO not low, even though the spirometry looks like emphysema?'],
+  ild: ['Small, stiff lungs', 'TLC and FVC fall (RV only a little), but FEV1/FVC is normal or high. Use the flow-volume loop to explain why. Tick \u201cFlow-volume loop on absolute lung volume\u201d and compare flow at the same lung volume: is it higher or lower than normal? What does the low DLCO add?'],
+  obesity: ['A load on the chest wall', 'TLC, FRC, and RV all fall, RV only a little. Of TLC, FRC, RV, and ERV, which falls the most as percent predicted, and why? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
+  neuromuscular: ['Small Group 4: weak muscles', 'Compare TLC, FRC, and RV as percent predicted. Why is TLC low and RV high while FRC stays near normal (the step-up pattern)? Now check tested supine. What happens to TLC, RV, and the flows, and why?'],
   upperAirway: ['The next room over', 'Both limbs of the flow-volume loop are cut off flat. Where along the airway must the obstruction be for flow to be capped in both directions? Why is DLCO normal?'],
   anemia: ['Normal lungs, low DLCO', 'Spirometry and lung volumes are normal. Why is the uncorrected DLCO low, and why does the hemoglobin-corrected value come back to normal?'],
   custom: ['Your own patient', 'Predict the report before you look: which numbers should move, and in which direction?'],
@@ -61,9 +61,10 @@ function chart(id, { xMin, xMax, yMin, yMax, xLabel, yLabel, xTicks, yTicks, mar
   const h = Number(canvas.dataset.logicalHeight || (canvas.dataset.logicalHeight = canvas.getAttribute('height'))), dpr = window.devicePixelRatio || 1;
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); canvas.style.height = h + 'px'; }
   const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const fs = w < 600 ? 11 : 10; // larger canvas text on phones (QA-08)
   const left = margin.left ?? 46, right = w - (margin.right ?? 16), top = 18, bottom = h - 36;
   const X = x => left + (x - xMin) / (xMax - xMin) * (right - left), Y = y => bottom - (y - yMin) / (yMax - yMin) * (bottom - top);
-  ctx.font = '10px -apple-system, sans-serif'; ctx.lineWidth = 1;
+  ctx.font = `${fs}px -apple-system, sans-serif`; ctx.lineWidth = 1;
   for (const y of yTicks) { ctx.strokeStyle = y === 0 ? colors.axis : colors.grid; ctx.beginPath(); ctx.moveTo(left, Y(y)); ctx.lineTo(right, Y(y)); ctx.stroke(); ctx.fillStyle = colors.text; ctx.textAlign = 'right'; ctx.fillText(y, left - 7, Y(y) + 3); }
   for (const x of xTicks) { ctx.strokeStyle = colors.grid; ctx.beginPath(); ctx.moveTo(X(x), top); ctx.lineTo(X(x), bottom); ctx.stroke(); ctx.fillStyle = colors.text; ctx.textAlign = 'center'; ctx.fillText(x, X(x), bottom + 15); }
   ctx.fillStyle = colors.text; ctx.textAlign = 'left'; ctx.fillText(yLabel, 3, 11); ctx.textAlign = 'center'; ctx.fillText(xLabel, (left + right) / 2, h - 5);
@@ -72,12 +73,13 @@ function chart(id, { xMin, xMax, yMin, yMax, xLabel, yLabel, xTicks, yTicks, mar
     ctx.strokeStyle = color; ctx.lineWidth = width; ctx.globalAlpha = alpha; ctx.setLineDash(dashed ? [5, 4] : []); ctx.beginPath();
     pts.forEach((p, i) => i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y))); ctx.stroke(); });
   const dot = (x, y, color, r = 4.5) => { ctx.setLineDash([]); ctx.fillStyle = color; ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(x), Y(y), r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); };
-  const text = (s, x, y, { color = colors.text, align = 'left', bold = false, dx = 0, dy = 0 } = {}) => { ctx.fillStyle = color; ctx.font = `${bold ? '600 ' : ''}10px -apple-system, sans-serif`; ctx.textAlign = align; ctx.fillText(s, X(x) + dx, Y(y) + dy); };
-  return { ctx, X, Y, left, right, top, bottom, line, dot, text, clip };
+  const text = (s, x, y, { color = colors.text, align = 'left', bold = false, dx = 0, dy = 0 } = {}) => { ctx.fillStyle = color; ctx.font = `${bold ? '600 ' : ''}${fs}px -apple-system, sans-serif`; ctx.textAlign = align; ctx.fillText(s, X(x) + dx, Y(y) + dy); };
+  return { ctx, X, Y, w, left, right, top, bottom, line, dot, text, clip };
 }
 
 function drawTracing(tl, r) {
-  const g = chart('tracing', { xMin: 0, xMax: Math.max(40, Math.ceil(tl.end / 5) * 5), yMin: 0, yMax: 8.5, xLabel: 'Time (s)', yLabel: 'Lung volume (L)', xTicks: [0, 10, 20, 30, 40, 50].filter(x => x <= Math.max(40, tl.end)), yTicks: [0, 1, 2, 3, 4, 5, 6, 7, 8], margin: { right: 215 } });
+  const narrow = $('tracing').getBoundingClientRect().width < 600;
+  const g = chart('tracing', { xMin: 0, xMax: Math.max(40, Math.ceil(tl.end / 5) * 5), yMin: 0, yMax: 8.5, xLabel: 'Time (s)', yLabel: 'Lung volume (L)', xTicks: [0, 10, 20, 30, 40, 50].filter(x => x <= Math.max(40, tl.end)), yTicks: [0, 1, 2, 3, 4, 5, 6, 7, 8], margin: { right: narrow ? 34 : 215 } });
   // RV cannot be measured by spirometry.
   g.ctx.save(); g.ctx.fillStyle = 'rgba(128,128,128,0.10)'; g.ctx.fillRect(g.left, g.Y(r.rv), g.right - g.left, g.Y(0) - g.Y(r.rv)); g.ctx.restore();
   g.line(tl.pts.filter(p => p.t <= tNow).map(p => ({ x: p.t, y: p.v })), colors.patient);
@@ -88,11 +90,21 @@ function drawTracing(tl, r) {
     ctx.strokeStyle = '#9a9a9a'; ctx.lineWidth = 1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x, a); ctx.lineTo(x + 4, a); ctx.moveTo(x, a); ctx.lineTo(x, b); ctx.moveTo(x, b); ctx.lineTo(x + 4, b); ctx.stroke();
     ctx.fillStyle = '#4d4d4d'; ctx.font = '600 10px -apple-system, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(label, x + 7, (a + b) / 2 + 3);
   };
-  bracket(0, r.tlc, vT, 'IRV'); bracket(0, vT, r.frc, 'TV'); bracket(0, r.frc, r.rv, 'ERV'); bracket(0, r.rv, 0, 'RV');
-  bracket(1, r.tlc, r.frc, 'IC'); bracket(1, r.frc, 0, 'FRC'); bracket(2, r.tlc, r.rv, 'VC'); bracket(3, r.tlc, 0, 'TLC');
-  for (const [v, l] of [[r.tlc, 'TLC'], [r.frc, 'FRC'], [r.rv, 'RV']]) { ctx.strokeStyle = '#c4c4c4'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(g.left, g.Y(v)); ctx.lineTo(g.right, g.Y(v)); ctx.stroke(); }
+  if (!narrow) {
+    bracket(0, r.tlc, vT, 'IRV'); bracket(0, vT, r.frc, 'TV'); bracket(0, r.frc, r.rv, 'ERV'); bracket(0, r.rv, 0, 'RV');
+    bracket(1, r.tlc, r.frc, 'IC'); bracket(1, r.frc, 0, 'FRC'); bracket(2, r.tlc, r.rv, 'VC'); bracket(3, r.tlc, 0, 'TLC');
+  }
+  for (const [v, l] of [[r.tlc, 'TLC'], [r.frc, 'FRC'], [r.rv, 'RV']]) {
+    ctx.strokeStyle = '#c4c4c4'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(g.left, g.Y(v)); ctx.lineTo(g.right, g.Y(v)); ctx.stroke();
+    if (narrow) { ctx.setLineDash([]); ctx.fillStyle = '#4d4d4d'; ctx.font = '600 11px -apple-system, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(l, g.right + 4, g.Y(v) + 4); }
+  }
   ctx.setLineDash([]);
-  const cur = tl.pts.filter(p => p.t <= tNow).at(-1); if (playing && cur) g.dot(cur.t, cur.v, colors.patient);
+  // On phones the brackets would leave no room for the tracing, so the volumes go in a row below it.
+  const vols = [['IRV', r.tlc - vT], ['TV', vT - r.frc], ['ERV', r.frc - r.rv], ['RV', r.rv], ['IC', r.tlc - r.frc], ['FRC', r.frc], ['VC', r.tlc - r.rv], ['TLC', r.tlc]];
+  const row = $('tracing-vols'); row.hidden = !narrow;
+  if (narrow) row.textContent = vols.map(([l, v]) => `${l} ${v.toFixed(2)}`).join(' · ') + ' L';
+  $('tracing').setAttribute('aria-label', `Spirometry tracing: lung volume over time. ${vols.map(([l, v]) => `${l} ${v.toFixed(2)} L`).join(', ')}. RV, FRC, and TLC cannot be measured by spirometry.`);
+  const past = tl.pts.filter(p => p.t <= tNow), cur = past[past.length - 1]; if (playing && cur) g.dot(cur.t, cur.v, colors.patient);
 }
 
 function fvPoints(sm, absolute) {
@@ -106,16 +118,16 @@ function drawFlowVolume(sm, tl) {
     ? chart('fv', { xMin: 8.5, xMax: 1, yMin: -8, yMax: 12, xLabel: 'Lung volume (L)  ← TLC        RV →', yLabel: 'Flow (L/s)', xTicks: [8, 7, 6, 5, 4, 3, 2, 1], yTicks: [-8, -4, 0, 4, 8, 12] })
     : chart('fv', { xMin: 0, xMax: 5.5, yMin: -8, yMax: 12, xLabel: 'Volume exhaled from TLC (L)', yLabel: 'Flow (L/s)', xTicks: [0, 1, 2, 3, 4, 5], yTicks: [-8, -4, 0, 4, 8, 12] });
   g.text('Expiration', absolute ? 8.4 : 0.1, 11, { bold: true, dy: 4 }); g.text('Inspiration', absolute ? 8.4 : 0.1, -7.2, { bold: true });
-  if ($('overlay').checked) g.line(fvPoints(healthySim, absolute), colors.healthy, { dashed: true, width: 1.3, alpha: 0.5 });
+  if ($('overlay').checked) g.line(fvPoints(healthySim, absolute), colors.healthy, { dashed: true, width: 1.3, alpha: 0.8 });
   const shown = fvPoints(sm, absolute).filter(p => tNow >= tl.end || (p.phase === 'e' ? tl.tExp + p.t <= tNow : tl.tIns + p.t <= tNow));
   g.line(shown, colors.patient);
-  const tl0 = sm.report.tlc, ev = sm.expiration.at(-1).v;
-  if (tNow >= tl.end) { g.text('TLC', absolute ? tl0 : 0, 0, { align: 'center', dy: 14, bold: true }); const trapped = ev - sm.report.rv > 0.02; g.text(absolute ? (trapped ? 'End of FVC' : 'RV') : 'FVC', absolute ? ev : tl0 - ev, 0, { align: 'center', dy: 14, bold: true }); if (absolute && trapped) g.text('RV', sm.report.rv, 0, { align: 'center', dy: 26, color: '#9a9a9a' }); }
+  const tl0 = sm.report.tlc, ev = sm.expiration[sm.expiration.length - 1].v;
+  if (tNow >= tl.end) { g.text('TLC', absolute ? tl0 : 0, 0, { align: 'center', dy: 14, bold: true }); const trapped = ev - sm.report.rv > 0.02; g.text(absolute ? (trapped ? 'End of FVC' : 'RV') : 'FVC', absolute ? ev : tl0 - ev, 0, { align: 'center', dy: 14, bold: true }); if (absolute && trapped) g.text('RV', sm.report.rv, 0, { align: 'center', dy: 26, color: '#737373' }); }
 }
 function drawVolumeTime(sm, tl) {
   const tMax = 14, g = chart('vt', { xMin: 0, xMax: tMax, yMin: 0, yMax: 5.5, xLabel: 'Time (s)', yLabel: 'Volume exhaled (L)', xTicks: [0, 1, 2, 4, 6, 8, 10, 12, 14], yTicks: [0, 1, 2, 3, 4, 5] });
   const series = s => s.expiration.filter((_, i) => i % 5 === 0).map(p => ({ x: p.t, y: s.report.tlc - p.v }));
-  if ($('overlay').checked) g.line(series(healthySim), colors.healthy, { dashed: true, width: 1.3, alpha: 0.5 });
+  if ($('overlay').checked) g.line(series(healthySim), colors.healthy, { dashed: true, width: 1.3, alpha: 0.8 });
   const elapsed = tNow >= tl.end ? Infinity : tNow - tl.tExp;
   g.line(series(sm).filter(p => p.x <= elapsed), colors.patient);
   const r = sm.report; g.ctx.save(); g.ctx.strokeStyle = '#9a9a9a'; g.ctx.setLineDash([3, 4]); g.ctx.beginPath(); g.ctx.moveTo(g.X(1), g.top); g.ctx.lineTo(g.X(1), g.bottom); g.ctx.stroke(); g.ctx.restore();
@@ -128,20 +140,21 @@ const ROWS = [
   ['Plethysmography'], ['tlc', 'TLC (L)', 2], ['frc', 'FRC (L)', 2], ['rv', 'RV (L)', 2],
   ['Spirometry'], ['fvc', 'FVC (L)', 2], ['fev1', 'FEV1 (L)', 2], ['ratio', 'FEV1/FVC (%)', 0], ['fef2575', 'FEF 25–75% (L/s)', 2], ['pef', 'PEF (L/s)', 2],
   ['Slow vital capacity'], ['svc', 'SVC (L)', 2], ['ic', 'IC (L)', 2], ['erv', 'ERV (L)', 2],
-  ['Airways'], ['raw', 'Raw (cmH₂O/L/s)', 2],
-  ['Diffusion'], ['dlco', 'DLCO unc (mL/min/mmHg)', 1], ['dlcoCorrected', 'DLCO cor for Hb', 1], ['hemoglobin', 'Hemoglobin (g/dL)', 1],
+  ['Airways'], ['raw', 'Raw (airway resistance)', 2],
+  ['Diffusion'], ['dlco', 'DLCO, uncorrected', 1], ['dlcoCorrected', 'DLCO, corrected for Hb', 1], ['hemoglobin', 'Hemoglobin (g/dL)', 1],
 ];
 // Flags: course rule 80–120% of predicted for volumes and DLCO (both directions); only low values are
 // flagged for flows and vital capacities; FEV1/FVC below 70%; Raw 2 or more; Hb below 13 or above 18.
 const BOTH_SIDES = new Set(['tlc', 'frc', 'rv', 'dlco', 'dlcoCorrected']);
 const NO_PCT = new Set(['ratio', 'hemoglobin', 'raw']);
 const PRE_ONLY = new Set(['dlco', 'dlcoCorrected', 'hemoglobin']); // not repeated after bronchodilator
+// Flags are decided on the rounded value the report shows, so a value printed as 80 is never flagged (STU-10).
 function isFlagged(k, r) {
-  const pc = 100 * r[k] / PREDICTED[k];
-  if (k === 'hemoglobin') return r[k] < 13 || r[k] > 18;
-  if (k === 'ratio') return r[k] < 0.7;
-  if (k === 'raw') return r[k] >= 2;
+  if (k === 'hemoglobin') { const hb = Number(r[k].toFixed(1)); return hb < 13 || hb > 18; }
+  if (k === 'ratio') return Math.round(100 * r[k]) < 70;
+  if (k === 'raw') return Number(r[k].toFixed(2)) >= 2;
   if (k === 'fef2575') return false; // shown, but not used for diagnosis
+  const pc = Math.round(100 * r[k] / PREDICTED[k]);
   return pc < 80 || (BOTH_SIDES.has(k) && pc > 120);
 }
 const show = (k, v, dp) => (k === 'ratio' ? 100 * v : v).toFixed(dp);
@@ -150,37 +163,63 @@ function preReport() {
   if (!p.bronchodilator || !$('bronchodilator').checked || matchPreset() !== presetKey) return null;
   return simulate({ ...p.settings, ...(p.supine && $('supine').checked ? p.supine : {}) }).report;
 }
+const signed = (x, dp) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(dp)}`;
 function renderReport(r) {
   const done = tNow >= (timeline?.end ?? 0), pre = preReport();
   // With a bronchodilator, the course report layout: pre-drug actual, predicted, %pred; post-drug actual, %pred, %change.
-  const table = rows => {
-    let html = pre
-      ? '<table><thead><tr><th></th><th>Pre</th><th>Pred</th><th>%Pred</th><th>Post</th><th>%Pred</th><th>%Chng</th></tr></thead><tbody>'
-      : '<table><thead><tr><th></th><th>Actual</th><th>Pred</th><th>%Pred</th></tr></thead><tbody>';
+  // Pre and Post cells are flagged separately (STU-03).
+  const table = (rows, name) => {
+    let html = `<div class="table-scroll"><table><caption class="sr-only">${name}</caption>` + (pre
+      ? '<thead><tr><th scope="col"><span class="sr-only">Measure</span></th><th scope="col">Pre</th><th scope="col">Pred</th><th scope="col">%Pred</th><th scope="col">Post</th><th scope="col">%Pred</th><th scope="col">% change from Pre</th></tr></thead><tbody>'
+      : '<thead><tr><th scope="col"><span class="sr-only">Measure</span></th><th scope="col">Actual</th><th scope="col">Pred</th><th scope="col">%Pred</th></tr></thead><tbody>');
     const cols = pre ? 7 : 4;
     for (const row of rows) {
-      if (row.length === 1) { html += `<tr class="section"><th colspan="${cols}">${row[0]}</th></tr>`; continue; }
+      if (row.length === 1) { html += `<tr class="section"><th colspan="${cols}" scope="colgroup">${row[0]}</th></tr>`; continue; }
       const [k, label, dp] = row, base = pre || r, noPct = NO_PCT.has(k);
       const pc = x => done && !noPct ? Math.round(100 * x[k] / PREDICTED[k]) : '';
-      const flag = done && isFlagged(k, base);
-      html += `<tr class="${flag ? 'flag' : ''}"><td>${label}</td><td>${done ? show(k, base[k], dp) : '…'}</td><td>${show(k, PREDICTED[k], dp)}</td><td>${pc(base)}</td>`;
-      if (pre) html += !PRE_ONLY.has(k) ? `<td>${done ? show(k, r[k], dp) : '…'}</td><td>${pc(r)}</td><td>${done ? Math.round(100 * (r[k] - pre[k]) / pre[k]) : ''}</td>` : '<td></td><td></td><td></td>';
+      const fBase = done && isFlagged(k, base), fPost = done && pre && !PRE_ONLY.has(k) && isFlagged(k, r);
+      const cls = f => f ? ' class="flag"' : '';
+      html += `<tr${fBase || fPost ? ' class="flag-row"' : ''}><th scope="row">${label}</th><td${cls(fBase)}>${done ? show(k, base[k], dp) : '…'}</td><td>${show(k, PREDICTED[k], dp)}</td><td${cls(fBase)}>${pc(base)}</td>`;
+      if (pre) {
+        // % change is computed from the values as printed, so students can check it by hand (STU-17).
+        const a = Number(show(k, pre[k], dp)), b = Number(show(k, r[k], dp));
+        html += !PRE_ONLY.has(k) ? `<td${cls(fPost)}>${done ? show(k, r[k], dp) : '…'}</td><td${cls(fPost)}>${pc(r)}</td><td>${done && a ? Math.round(100 * (b - a) / a) : ''}</td>` : '<td></td><td></td><td></td>';
+      }
       html += '</tr>';
     }
-    return html + '</tbody></table>';
+    return html + '</tbody></table></div>';
   };
   const split = ROWS.findIndex(row => row[0] === 'Slow vital capacity');
-  $('report').innerHTML = table(ROWS.slice(0, split)) + table(ROWS.slice(split));
+  $('report').innerHTML = table(ROWS.slice(0, split), 'Plethysmography and spirometry') + table(ROWS.slice(split), 'Slow vital capacity, airways, and diffusion');
+  // The bronchodilator rule uses the change in percent predicted, which a lab report does not print (STU-01, 02).
+  const bd = $('bd-change');
+  if (pre && done) {
+    const pts = k => 100 * (r[k] - pre[k]) / PREDICTED[k];
+    bd.hidden = false;
+    bd.innerHTML = `<strong>Change after bronchodilator:</strong> FEV1 ${signed(r.fev1 - pre.fev1, 2)} L (${signed(pts('fev1'), 0)} points of percent predicted); FVC ${signed(r.fvc - pre.fvc, 2)} L (${signed(pts('fvc'), 0)} points). The bronchodilator rule uses these points: a rise of more than 10 in FEV1 or FVC is a response. The "% change from Pre" column is a different number.`;
+  } else bd.hidden = true;
+  const rule = 'volumes and DLCO outside 80–120% of predicted; flows and vital capacities below 80%; FEV1/FVC below 70%; Raw 2 or more; hemoglobin below 13 or above 18 g/dL. Flags use the rounded value shown. FEF 25–75% is shown but not used for diagnosis';
   $('report-caption').textContent = pre
-    ? 'Pre is before and Post after bronchodilator; %Chng is the change from Pre, as on a lab report (the bronchodilator rule instead uses the change as a percent of predicted). Flags apply to the Pre values: volumes and DLCO outside 80–120% of predicted; flows and vital capacities below 80%; FEV1/FVC below 70%; Raw 2 or more; hemoglobin below 13 or above 18 g/dL'
-    : 'Flagged: volumes and DLCO outside 80–120% of predicted; flows and vital capacities below 80%; FEV1/FVC below 70%; Raw 2 or more; hemoglobin below 13 or above 18 g/dL. FEF 25–75% is shown but not used for diagnosis';
+    ? `Pre is before and Post after bronchodilator. Values in bold red are outside the normal range, judged separately for Pre and Post, and an asterisk marks the row: ${rule}.`
+    : `Values in bold red, rows marked with an asterisk, are outside the normal range: ${rule}.`;
 }
 
+const CTA = 'Make your own read first, then show the stepwise interpretation';
 function renderInterpretation() {
   const done = tNow >= (timeline?.end ?? 0), box = $('interp-box');
-  if (!done) { box.open = false; box.classList.add('waiting'); return; }
-  box.classList.remove('waiting');
+  const summary = box.querySelector('summary'), cta = box.querySelector('.interp-cta');
+  if (!done) {
+    box.open = false; box.classList.add('waiting'); summary.setAttribute('aria-disabled', 'true');
+    cta.textContent = 'The stepwise interpretation is available when the run finishes';
+    $('fv').setAttribute('aria-label', 'Flow-volume loop, drawing as the test runs'); $('vt').setAttribute('aria-label', 'Volume-time curve, drawing as the test runs');
+    return;
+  }
+  box.classList.remove('waiting'); summary.removeAttribute('aria-disabled'); cta.textContent = CTA;
   const out = interpret(sim.report, PREDICTED, { pre: preReport(), custom: matchPreset() === 'custom' });
+  // Text equivalents for the charts (QA-04). The loop shape comes from the same rules as step 3.
+  const r = sim.report, shape = out.steps[2].a.replace(/<[^>]+>.*$/s, '').replace(/^(No\.|Yes,)\s*/, '').replace(/^./, c => c.toUpperCase());
+  $('fv').setAttribute('aria-label', `Flow-volume loop. Peak expiratory flow ${r.pef.toFixed(1)} L/s, peak inspiratory flow ${r.pif.toFixed(1)} L/s, FVC ${r.fvc.toFixed(2)} L. ${shape}`);
+  $('vt').setAttribute('aria-label', `Volume-time curve. FEV1 ${r.fev1.toFixed(2)} L, FVC ${r.fvc.toFixed(2)} L, FEV1/FVC ${Math.round(100 * r.ratio)}%, expiration lasts ${r.expTime.toFixed(1)} s.`);
   $('interp-steps').innerHTML = out.steps.map(x => `<li><strong>${x.q}</strong><br>${x.a}</li>`).join('');
   $('interp-result').innerHTML = `<strong>${out.pattern}.</strong> ${out.consistent}`;
 }
@@ -200,7 +239,7 @@ function draw() {
   sim = simulate(settings); timeline = buildTimeline(sim);
   if (!playing) tNow = Infinity;
   drawTracing(timeline, sim.report); drawFlowVolume(sim, timeline); drawVolumeTime(sim, timeline); renderReport(sim.report); renderInterpretation(); renderPleth(sim.report);
-  for (const [k, m] of Object.entries(SLIDERS)) $('o-' + k).textContent = m.fmt(settings[k]);
+  for (const [k, m] of Object.entries(SLIDERS)) { const t = m.fmt(settings[k]); $('o-' + k).textContent = t; $('s-' + k).setAttribute('aria-valuetext', t); }
 }
 function frame(now) {
   if (!playing) return;
@@ -233,7 +272,7 @@ function exportCsv() {
   sim.inspiration.filter((_, i) => i % 5 === 0).forEach(p => rows.push([p.t.toFixed(3), p.v.toFixed(4), (-p.flow).toFixed(4), 'forced inspiration']));
   rows.push([], ['settings', JSON.stringify(settings).replaceAll(',', ';')]);
   const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([rows.map(x => x.join(',')).join('\n')], { type: 'text/csv' })), download: 'pft-report.csv' });
-  link.click(); URL.revokeObjectURL(link.href);
+  document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 $('preset').innerHTML = Object.entries(PFT_PRESETS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
@@ -242,6 +281,8 @@ $('reset').addEventListener('click', () => { $('preset').value = 'normal'; loadP
 for (const id of ['bronchodilator', 'supine']) $(id).addEventListener('change', () => { settings = currentPresetSettings(); writeSliders(); setQuestion(presetKey); draw(); });
 for (const k of Object.keys(SLIDERS)) $('s-' + k).addEventListener('input', () => { readSliders(); setQuestion(matchPreset()); draw(); });
 for (const id of ['overlay', 'absolute']) $(id).addEventListener('change', draw);
+// Keyboard and mouse are blocked the same way while the run plays (QA-06).
+$('interp-box').querySelector('summary').addEventListener('click', e => { if ($('interp-box').classList.contains('waiting')) e.preventDefault(); });
 $('run').addEventListener('click', run); $('export').addEventListener('click', exportCsv);
 window.addEventListener('resize', draw);
 loadPreset('normal');
