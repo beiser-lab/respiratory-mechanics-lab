@@ -15,14 +15,19 @@ export const NORMAL = Object.freeze({
   lungV0: 1.2530,   // volume of the lung at zero transpulmonary pressure
   lungVmax: 6.2742, // asymptotic maximum lung volume
   lungK: 0.08552,   // shape constant, 1/cmH2O
+  // Lung size: a compliance multiplier s also scales the lung's volume axis by s^lungSizeExp, so an
+  // emphysematous lung is bigger at every pressure (TLC rises above 120%) and a fibrotic lung smaller
+  // (TLC and RV fall). With s = 1 the healthy curve is unchanged.
+  lungSizeExp: 0.2,
   // Chest wall (logistic): V = Vlow + (Vhigh - Vlow) / (1 + exp(-(Pcw - Pc) / b)).
   // Fit so the chest wall rests at 72% VC (4.75 L; Rahn et al. 1946), recoils outward
   // -5 cmH2O at FRC (3.0 L), and -14 cmH2O at RV (1.5 L), leaving room for RV to fall when the
-  // chest wall is loaded (obesity) or the lung is stiff (fibrosis).
-  cwVlow: 1.2564,
-  cwVhigh: 7.0,
-  cwPc: -1.7318,    // cmH2O
-  cwB: 3.9359,      // cmH2O
+  // chest wall is loaded (obesity) or the lung is stiff (fibrosis). The upper limit (8.5 L) is set
+  // high enough that a hyperinflated chest (emphysema) can reach a TLC above 120% of predicted.
+  cwVlow: 1.1398,
+  cwVhigh: 8.5,
+  cwPc: 0.1816,     // cmH2O
+  cwB: 4.7798,      // cmH2O
   // Maximal relaxation-pressure equivalents of the respiratory muscles at 100% strength.
   // Calibrated so the healthy model gives TLC 6.0 L and RV 1.5 L.
   inspMax: null,
@@ -33,18 +38,23 @@ export const DEFAULT_SETTINGS = Object.freeze({ lungCompliance: 1, chestWallComp
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
-// Compliance multipliers scale pressure at every volume: P(V) = Pnormal(V) / multiplier.
-// For the lung this rotates the curve about its collapsed volume (zero recoil). The chest wall
-// pivots near RV instead (see below).
-
+// Lung: the compliance multiplier s scales the slope of the lung curve. Through g = s^lungSizeExp it
+// also scales the lung's volume axis (minimal and maximal volume), so the curve both steepens and
+// grows in emphysema, and flattens and shrinks in fibrosis. With s = 1 nothing changes.
+// The chest wall pivots near RV instead (see below).
+const lungScale = (s, p) => s ** (p.lungSizeExp ?? 0);
+export const lungMinVolume = (s = 1, p = NORMAL) => p.lungV0 * lungScale(s, p);
+export const lungMaxVolume = (s = 1, p = NORMAL) => p.lungVmax * lungScale(s, p);
 export function lungVolume(P, s = 1, p = NORMAL) {
   if (P < 0) return NaN; // the lung cannot sustain negative transpulmonary pressure
-  return p.lungVmax - (p.lungVmax - p.lungV0) * Math.exp(-p.lungK * s * P);
+  const g = lungScale(s, p);
+  return g * (p.lungVmax - (p.lungVmax - p.lungV0) * Math.exp(-p.lungK * (s / g) * P));
 }
 export function lungPressure(V, s = 1, p = NORMAL) {
-  if (V <= p.lungV0) return 0;
-  if (V >= p.lungVmax) return Infinity;
-  return -Math.log((p.lungVmax - V) / (p.lungVmax - p.lungV0)) / (p.lungK * s);
+  const g = lungScale(s, p), v = V / g;
+  if (v <= p.lungV0) return 0;
+  if (v >= p.lungVmax) return Infinity;
+  return -Math.log((p.lungVmax - v) / (p.lungVmax - p.lungV0)) / (p.lungK * (s / g));
 }
 // The chest wall curve pivots near RV: the compressed chest wall at low volume is set by the
 // bony thorax and changes little with disease, while a stiffer chest wall needs more pressure
@@ -73,7 +83,7 @@ export function systemPressure(V, settings = DEFAULT_SETTINGS, p = NORMAL) {
 
 // Prs(V) increases monotonically with V, so bisection finds the volume for any target pressure.
 export function volumeAtSystemPressure(target, settings = DEFAULT_SETTINGS, p = NORMAL) {
-  let lo = p.cwVlow + 1e-9, hi = Math.min(p.lungVmax, p.cwVhigh) - 1e-9;
+  let lo = p.cwVlow + 1e-9, hi = Math.min(lungMaxVolume(settings.lungCompliance ?? 1, p), p.cwVhigh) - 1e-9;
   for (let i = 0; i < 100; i++) {
     const mid = (lo + hi) / 2;
     if (systemPressure(mid, settings, p) < target) lo = mid; else hi = mid;
@@ -99,7 +109,8 @@ export function analyze(settings = DEFAULT_SETTINGS, p = PARAMS) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const frc = volumeAtSystemPressure(0, s, p);
   const tlc = volumeAtSystemPressure(p.inspMax * s.muscleStrength, s, p);
-  const rv = volumeAtSystemPressure(-p.expMax * s.muscleStrength, s, p);
+  // The lung cannot be emptied below its minimal volume, however strong the expiratory muscles.
+  const rv = Math.max(volumeAtSystemPressure(-p.expMax * s.muscleStrength, s, p), lungMinVolume(s.lungCompliance, p));
   const PL = lungPressure(frc, s.lungCompliance, p);
   const Pcw = chestWallPressure(frc, s.chestWallCompliance, p, s.chestWallLoad);
   const CL = slopeCompliance(V => lungPressure(V, s.lungCompliance, p), frc);
@@ -111,7 +122,7 @@ export function analyze(settings = DEFAULT_SETTINGS, p = PARAMS) {
     lungCompliance: CL, chestWallCompliance: Ccw, systemCompliance: Crs,
     seriesCheck: 1 / (1 / CL + 1 / Ccw),
     chestWallRestingVolume: chestWallVolume(0, s.chestWallCompliance, p, s.chestWallLoad),
-    lungMinimalVolume: p.lungV0,
+    lungMinimalVolume: lungMinVolume(s.lungCompliance, p),
   };
 }
 
@@ -131,7 +142,7 @@ export function curves(settings = DEFAULT_SETTINGS, p = PARAMS, { pMin = -40, pM
     chestWall.push({ x: P, y: chestWallVolume(P, s.chestWallCompliance, p, s.chestWallLoad) });
   }
   // The system curve is built on a volume grid (pressures add at each volume).
-  const vLo = p.cwVlow + 0.02, vHi = Math.min(p.lungVmax, p.cwVhigh) - 0.02;
+  const vLo = p.cwVlow + 0.02, vHi = Math.min(lungMaxVolume(s.lungCompliance, p), p.cwVhigh) - 0.02;
   for (let i = 0; i <= n; i++) {
     const V = vLo + (vHi - vLo) * i / n;
     const P = systemPressure(V, s, p);

@@ -1,9 +1,9 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=14';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=15';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944' };
-const AX = { pMin: -30, pMax: 50, vMin: 0, vMax: 7 };
-const V_DRAW_MAX = 6.6; // the classic figure stops near TLC
+const AX = { pMin: -30, pMax: 50, vMin: 0, vMax: 8 };
+const V_DRAW_MAX = 7.6; // the classic figure stops near TLC; room for a hyperinflated TLC
 
 const QUESTIONS = {
   normal: ['Where do the pulls balance?', 'At FRC the lung recoils inward and the chest wall recoils outward with equal and opposite pressures. Which way should FRC move if the lung becomes stiffer?'],
@@ -11,8 +11,8 @@ const QUESTIONS = {
   fibrosis: ['More recoil, smaller lungs', 'A stiff lung needs more pressure at every volume. Follow the FRC and TLC. Why does TLC fall even though muscle strength is normal?'],
   obesity: ['A load on the outside', 'Mass loading pushes the chest wall curve to the right. Which volume changes most, and why might a patient with obesity have trouble with ERV in particular?'],
   kyphoscoliosis: ['A stiff box', 'The lung is normal, yet FRC, TLC, and ERV all fall and the combined curve is flatter. Use 1/Crs = 1/CL + 1/Ccw to explain why the stiffer of the two parts dominates the system compliance.'],
-  neuromuscular: ['Weak muscles, normal tissues', 'The relaxation curves did not move at all. Why do TLC and RV change while FRC stays put? Compare this with the fibrosis pattern.'],
-  custom: ['Your own experiment', 'Predict first, then move the slider. Which volumes depend only on the relaxation curves, and which also depend on the muscles?'],
+  neuromuscular: ['Weak muscles, normal tissues', 'The compliance curves did not move at all. Why do TLC and RV change while FRC stays put? Compare this with the fibrosis pattern.'],
+  custom: ['Your own experiment', 'Predict first, then move the slider. Which volumes depend only on the compliance curves, and which also depend on the muscles?'],
 };
 
 const sliders = {
@@ -71,7 +71,7 @@ function chart(id) {
   for (let p = AX.pMin; p <= AX.pMax; p += 10) { ctx.strokeStyle = p === 0 ? colors.axis : colors.grid; ctx.lineWidth = p === 0 ? 1.4 : 1; ctx.beginPath(); ctx.moveTo(X(p), top); ctx.lineTo(X(p), bottom); ctx.stroke(); ctx.fillStyle = colors.text; ctx.textAlign = 'center'; ctx.fillText(p, X(p), bottom + 16); }
   ctx.lineWidth = 1;
   ctx.fillStyle = colors.text; ctx.textAlign = 'left'; ctx.fillText('Volume (L)', 3, 14);
-  ctx.textAlign = 'center'; ctx.fillText(compact ? 'Relaxation pressure (cmH₂O)' : 'Relaxation pressure (cmH₂O) · lung: Ptp = PA − Ppl · chest wall: Ppl · system: Prs', (left + right) / 2, h - 6);
+  ctx.textAlign = 'center'; ctx.fillText(compact ? 'Pressure (cmH₂O)' : 'Pressure (cmH₂O), muscles relaxed · lung: Ptp = PA − Ppl · chest wall: Ppl · system: Prs', (left + right) / 2, h - 6);
   ctx.font = '600 11px -apple-system, sans-serif'; ctx.fillStyle = '#4d4d4d';
   if (compact) {
     ctx.font = '600 10px -apple-system, sans-serif'; ctx.textAlign = 'right'; ctx.fillText('← Compression', X(0) - 6, top - 10);
@@ -211,7 +211,7 @@ function loadPreset(key) { settings = { ...DEFAULT_SETTINGS, ...PRESETS[key] }; 
 
 function exportCsv() {
   const rows = [['volume_L', 'lung_cmH2O', 'chest_wall_cmH2O', 'system_cmH2O', 'healthy_lung_cmH2O', 'healthy_chest_wall_cmH2O', 'healthy_system_cmH2O']];
-  for (let V = 1.25; V <= 6.6001; V += 0.05) {
+  for (let V = 1.25; V <= 7.6001; V += 0.05) {
     const p = probe(V, settings), h = probe(V, DEFAULT_SETTINGS);
     rows.push([V.toFixed(2), p.lung, p.chestWall, p.system, h.lung, h.chestWall, h.system].map(x => typeof x === 'number' ? (Number.isFinite(x) ? x.toFixed(3) : '') : x));
   }
@@ -231,7 +231,7 @@ $('overlay').addEventListener('change', draw); $('show-limits').addEventListener
 $('probe').addEventListener('input', e => { probeVolume = Number(e.target.value); stopBreath(); draw(); });
 $('breathe').addEventListener('click', startBreath);
 const canvas = $('pv');
-const fromPointer = e => { if (breath && !breath.done) return; const r = canvas.getBoundingClientRect(); const h = Number(canvas.dataset.logicalHeight); const top = 34, bottom = h - 40; const v = AX.vMin + (bottom - (e.clientY - r.top)) / (bottom - top) * (AX.vMax - AX.vMin); probeVolume = Math.min(6.6, Math.max(1.3, v)); $('probe').value = probeVolume; draw(); };
+const fromPointer = e => { if (breath && !breath.done) return; const r = canvas.getBoundingClientRect(); const h = Number(canvas.dataset.logicalHeight); const top = 34, bottom = h - 40; const v = AX.vMin + (bottom - (e.clientY - r.top)) / (bottom - top) * (AX.vMax - AX.vMin); probeVolume = Math.min(7.6, Math.max(1.3, v)); $('probe').value = probeVolume; draw(); };
 canvas.addEventListener('pointermove', e => { if (breath) return; fromPointer(e); }); canvas.addEventListener('pointerdown', e => { stopBreath(); fromPointer(e); });
 $('export').addEventListener('click', exportCsv);
 window.addEventListener('resize', draw);
