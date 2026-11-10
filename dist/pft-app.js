@@ -1,16 +1,16 @@
-import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=14';
-import { interpret } from './pft-interpret.js?v=14';
+import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=15';
+import { interpret } from './pft-interpret.js?v=15';
 
 const $ = id => document.getElementById(id);
 const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666' };
 
 const QUESTIONS = {
-  normal: ['Read it like a consultant', 'Start with FEV1/FVC: is there obstruction? Then TLC: is there restriction? Then DLCO: is the problem in the alveoli? Load a patient and work through the same three questions.'],
-  emphysema: ['72-year-old former smoker', 'Is FEV1/FVC below 0.70? Rank TLC, FRC, and RV by how far each rises. Why does RV rise the most? Why is DLCO low here but not in asthma? Look for the scoop on the flow-volume loop and the long tail on the volume-time curve.'],
-  asthma: ['Obstruction that reverses', 'Check the box for after bronchodilator. How much does FEV1 change, in liters and in percent? Why is DLCO normal or high even though spirometry looks like emphysema?'],
-  ild: ['Small, stiff lungs', 'TLC and FVC fall, but FEV1/FVC is normal or high. Use the flow-volume loop to explain why: at any given lung volume, is flow higher or lower than normal? What does the low DLCO add?'],
-  obesity: ['A load on the chest wall', 'TLC, FRC, and RV all fall, but one volume falls the most. Which is it, and why? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
-  neuromuscular: ['Small Group 4: weak muscles', 'Compare TLC, FRC, and RV as percent predicted. What is the step-up pattern, and why does FRC stay normal? Now check tested supine. What changes, and why?'],
+  normal: ['Read it like a consultant', 'Start with lung volumes: big lungs or small lungs? Then FEV1/FVC: is there obstruction? Then the shape of the flow-volume loop, then DLCO: is it preserved? If a bronchodilator was given, did it help? Load a patient and work through the same questions.'],
+  emphysema: ['72-year-old former smoker', 'Big lungs or small lungs? Rank TLC, FRC, and RV by how far each rises. Why does RV rise the most? Is FEV1/FVC below 70%? Why is DLCO low here but not in asthma? Look for the scoop on the flow-volume loop and the long tail on the volume-time curve. Then check after bronchodilator: does it reverse?'],
+  asthma: ['Obstruction that reverses', 'Notice the air trapping before treatment (RV and FRC). Now check the box for after bronchodilator. How much do FEV1 and FVC change, in liters and as a percent of predicted? What happens to RV? Why is DLCO normal or high even though spirometry looks like emphysema?'],
+  ild: ['Small, stiff lungs', 'TLC and FVC fall (RV only a little), but FEV1/FVC is normal or high. Use the flow-volume loop to explain why: at any given lung volume, is flow higher or lower than normal? What does the low DLCO add?'],
+  obesity: ['A load on the chest wall', 'TLC, FRC, and RV all fall (RV only a little), but one volume falls far more than the others. Which is it, and why? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
+  neuromuscular: ['Small Group 4: weak muscles', 'Compare TLC, FRC, and RV as percent predicted. What is the step-up pattern, and why does FRC stay near normal? Now check tested supine. What happens to TLC, RV, and the flows, and why?'],
   upperAirway: ['The next room over', 'Both limbs of the flow-volume loop are cut off flat. Where along the airway must the obstruction be for flow to be capped in both directions? Why is DLCO normal?'],
   anemia: ['Normal lungs, low DLCO', 'Spirometry and lung volumes are normal. Why is the uncorrected DLCO low, and why does the hemoglobin-corrected value come back to normal?'],
   custom: ['Your own patient', 'Predict the report before you look: which numbers should move, and in which direction?'],
@@ -43,7 +43,7 @@ function currentPresetSettings() {
 
 // ---------- the composite spirometry maneuver ----------
 function buildTimeline(sm) {
-  const r = sm.report, pts = [], VT = 0.5, period = 4;
+  const r = sm.report, pts = [], VT = Math.max(0.05, Math.min(0.5, r.tlc - r.frc)), period = 4;
   let t = 0; const push = (v, phase) => pts.push({ t, v, phase });
   const dt = 0.02;
   for (; t < 3 * period - 1e-9; t += dt) push(r.frc + VT / 2 * (1 - Math.cos(2 * Math.PI * t / period)), 'tidal');
@@ -77,7 +77,7 @@ function chart(id, { xMin, xMax, yMin, yMax, xLabel, yLabel, xTicks, yTicks, mar
 }
 
 function drawTracing(tl, r) {
-  const g = chart('tracing', { xMin: 0, xMax: Math.max(40, Math.ceil(tl.end / 5) * 5), yMin: 0, yMax: 7.5, xLabel: 'Time (s)', yLabel: 'Lung volume (L)', xTicks: [0, 10, 20, 30, 40, 50].filter(x => x <= Math.max(40, tl.end)), yTicks: [0, 1, 2, 3, 4, 5, 6, 7], margin: { right: 215 } });
+  const g = chart('tracing', { xMin: 0, xMax: Math.max(40, Math.ceil(tl.end / 5) * 5), yMin: 0, yMax: 8.5, xLabel: 'Time (s)', yLabel: 'Lung volume (L)', xTicks: [0, 10, 20, 30, 40, 50].filter(x => x <= Math.max(40, tl.end)), yTicks: [0, 1, 2, 3, 4, 5, 6, 7, 8], margin: { right: 215 } });
   // RV cannot be measured by spirometry.
   g.ctx.save(); g.ctx.fillStyle = 'rgba(128,128,128,0.10)'; g.ctx.fillRect(g.left, g.Y(r.rv), g.right - g.left, g.Y(0) - g.Y(r.rv)); g.ctx.restore();
   g.line(tl.pts.filter(p => p.t <= tNow).map(p => ({ x: p.t, y: p.v })), colors.patient);
@@ -103,14 +103,14 @@ function drawFlowVolume(sm, tl) {
   const absolute = $('absolute').checked;
   $('fv-note').textContent = absolute ? 'Absolute lung volume: needs plethysmography for RV and TLC' : 'Volume exhaled from TLC, as on a report';
   const g = absolute
-    ? chart('fv', { xMin: 7.5, xMax: 1, yMin: -8, yMax: 12, xLabel: 'Lung volume (L)  ← TLC        RV →', yLabel: 'Flow (L/s)', xTicks: [7, 6, 5, 4, 3, 2, 1], yTicks: [-8, -4, 0, 4, 8, 12] })
+    ? chart('fv', { xMin: 8.5, xMax: 1, yMin: -8, yMax: 12, xLabel: 'Lung volume (L)  ← TLC        RV →', yLabel: 'Flow (L/s)', xTicks: [8, 7, 6, 5, 4, 3, 2, 1], yTicks: [-8, -4, 0, 4, 8, 12] })
     : chart('fv', { xMin: 0, xMax: 5.5, yMin: -8, yMax: 12, xLabel: 'Volume exhaled from TLC (L)', yLabel: 'Flow (L/s)', xTicks: [0, 1, 2, 3, 4, 5], yTicks: [-8, -4, 0, 4, 8, 12] });
-  g.text('Expiration', absolute ? 7.4 : 0.1, 11, { bold: true, dy: 4 }); g.text('Inspiration', absolute ? 7.4 : 0.1, -7.2, { bold: true });
+  g.text('Expiration', absolute ? 8.4 : 0.1, 11, { bold: true, dy: 4 }); g.text('Inspiration', absolute ? 8.4 : 0.1, -7.2, { bold: true });
   if ($('overlay').checked) g.line(fvPoints(healthySim, absolute), colors.healthy, { dashed: true, width: 1.3, alpha: 0.5 });
   const shown = fvPoints(sm, absolute).filter(p => tNow >= tl.end || (p.phase === 'e' ? tl.tExp + p.t <= tNow : tl.tIns + p.t <= tNow));
   g.line(shown, colors.patient);
   const tl0 = sm.report.tlc, ev = sm.expiration.at(-1).v;
-  if (tNow >= tl.end) { g.text('TLC', absolute ? tl0 : 0, 0, { align: 'center', dy: 14, bold: true }); g.text(absolute ? 'RV' : 'RV (FVC)', absolute ? ev : tl0 - ev, 0, { align: 'center', dy: 14, bold: true }); }
+  if (tNow >= tl.end) { g.text('TLC', absolute ? tl0 : 0, 0, { align: 'center', dy: 14, bold: true }); const trapped = ev - sm.report.rv > 0.02; g.text(absolute ? (trapped ? 'End of FVC' : 'RV') : 'FVC', absolute ? ev : tl0 - ev, 0, { align: 'center', dy: 14, bold: true }); if (absolute && trapped) g.text('RV', sm.report.rv, 0, { align: 'center', dy: 26, color: '#9a9a9a' }); }
 }
 function drawVolumeTime(sm, tl) {
   const tMax = 14, g = chart('vt', { xMin: 0, xMax: tMax, yMin: 0, yMax: 5.5, xLabel: 'Time (s)', yLabel: 'Volume exhaled (L)', xTicks: [0, 1, 2, 4, 6, 8, 10, 12, 14], yTicks: [0, 1, 2, 3, 4, 5] });
@@ -126,35 +126,61 @@ function drawVolumeTime(sm, tl) {
 // ---------- report ----------
 const ROWS = [
   ['Plethysmography'], ['tlc', 'TLC (L)', 2], ['frc', 'FRC (L)', 2], ['rv', 'RV (L)', 2],
-  ['Spirometry'], ['fvc', 'FVC (L)', 2], ['fev1', 'FEV1 (L)', 2], ['ratio', 'FEV1/FVC', 2], ['fef2575', 'FEF 25–75% (L/s)', 2], ['pef', 'PEF (L/s)', 2],
+  ['Spirometry'], ['fvc', 'FVC (L)', 2], ['fev1', 'FEV1 (L)', 2], ['ratio', 'FEV1/FVC (%)', 0], ['fef2575', 'FEF 25–75% (L/s)', 2], ['pef', 'PEF (L/s)', 2],
   ['Slow vital capacity'], ['svc', 'SVC (L)', 2], ['ic', 'IC (L)', 2], ['erv', 'ERV (L)', 2],
+  ['Airways'], ['raw', 'Raw (cmH₂O/L/s)', 2],
   ['Diffusion'], ['dlco', 'DLCO unc (mL/min/mmHg)', 1], ['dlcoCorrected', 'DLCO cor for Hb', 1], ['hemoglobin', 'Hemoglobin (g/dL)', 1],
 ];
+// Flags: course rule 80–120% of predicted for volumes and DLCO (both directions); only low values are
+// flagged for flows and vital capacities; FEV1/FVC below 70%; Raw 2 or more; Hb below 13 or above 18.
+const BOTH_SIDES = new Set(['tlc', 'frc', 'rv', 'dlco', 'dlcoCorrected']);
+const NO_PCT = new Set(['ratio', 'hemoglobin', 'raw']);
+const PRE_ONLY = new Set(['dlco', 'dlcoCorrected', 'hemoglobin']); // not repeated after bronchodilator
+function isFlagged(k, r) {
+  const pc = 100 * r[k] / PREDICTED[k];
+  if (k === 'hemoglobin') return r[k] < 13 || r[k] > 18;
+  if (k === 'ratio') return r[k] < 0.7;
+  if (k === 'raw') return r[k] >= 2;
+  if (k === 'fef2575') return false; // shown, but not used for diagnosis
+  return pc < 80 || (BOTH_SIDES.has(k) && pc > 120);
+}
+const show = (k, v, dp) => (k === 'ratio' ? 100 * v : v).toFixed(dp);
+function preReport() {
+  const p = PFT_PRESETS[presetKey];
+  if (!p.bronchodilator || !$('bronchodilator').checked || matchPreset() !== presetKey) return null;
+  return simulate({ ...p.settings, ...(p.supine && $('supine').checked ? p.supine : {}) }).report;
+}
 function renderReport(r) {
-  const done = tNow >= (timeline?.end ?? 0);
+  const done = tNow >= (timeline?.end ?? 0), pre = preReport();
+  // With a bronchodilator, the course report layout: pre-drug actual, predicted, %pred; post-drug actual, %pred, %change.
   const table = rows => {
-    let html = '<table><thead><tr><th></th><th>Actual</th><th>Pred</th><th>%Pred</th></tr></thead><tbody>';
+    let html = pre
+      ? '<table><thead><tr><th></th><th>Pre</th><th>Pred</th><th>%Pred</th><th>Post</th><th>%Pred</th><th>%Chng</th></tr></thead><tbody>'
+      : '<table><thead><tr><th></th><th>Actual</th><th>Pred</th><th>%Pred</th></tr></thead><tbody>';
+    const cols = pre ? 7 : 4;
     for (const row of rows) {
-      if (row.length === 1) { html += `<tr class="section"><th colspan="4">${row[0]}</th></tr>`; continue; }
-      const [k, label, dp] = row, isRatio = k === 'ratio', noPct = isRatio || k === 'hemoglobin';
-      const a = isRatio ? r[k] : r[k], p = PREDICTED[k], pc = 100 * r[k] / PREDICTED[k];
-      const low = k === 'fef2575' ? 65 : 80;
-      const flag = k === 'hemoglobin' ? (r[k] < 13 || r[k] > 18) : isRatio ? r[k] < 0.7 : (pc < low || pc > 120);
-      html += `<tr class="${flag && done ? 'flag' : ''}"><td>${label}</td><td>${done ? a.toFixed(dp) : '…'}</td><td>${p.toFixed(dp)}</td><td>${done && !noPct ? Math.round(pc) : ''}</td></tr>`;
+      if (row.length === 1) { html += `<tr class="section"><th colspan="${cols}">${row[0]}</th></tr>`; continue; }
+      const [k, label, dp] = row, base = pre || r, noPct = NO_PCT.has(k);
+      const pc = x => done && !noPct ? Math.round(100 * x[k] / PREDICTED[k]) : '';
+      const flag = done && isFlagged(k, base);
+      html += `<tr class="${flag ? 'flag' : ''}"><td>${label}</td><td>${done ? show(k, base[k], dp) : '…'}</td><td>${show(k, PREDICTED[k], dp)}</td><td>${pc(base)}</td>`;
+      if (pre) html += !PRE_ONLY.has(k) ? `<td>${done ? show(k, r[k], dp) : '…'}</td><td>${pc(r)}</td><td>${done ? Math.round(100 * (r[k] - pre[k]) / pre[k]) : ''}</td>` : '<td></td><td></td><td></td>';
+      html += '</tr>';
     }
     return html + '</tbody></table>';
   };
   const split = ROWS.findIndex(row => row[0] === 'Slow vital capacity');
   $('report').innerHTML = table(ROWS.slice(0, split)) + table(ROWS.slice(split));
+  $('report-caption').textContent = pre
+    ? 'Pre is before and Post after bronchodilator; %Chng is the change from Pre, as on a lab report (the bronchodilator rule instead uses the change as a percent of predicted). Flags apply to the Pre values: volumes and DLCO outside 80–120% of predicted; flows and vital capacities below 80%; FEV1/FVC below 70%; Raw 2 or more; hemoglobin below 13 or above 18 g/dL'
+    : 'Flagged: volumes and DLCO outside 80–120% of predicted; flows and vital capacities below 80%; FEV1/FVC below 70%; Raw 2 or more; hemoglobin below 13 or above 18 g/dL. FEF 25–75% is shown but not used for diagnosis';
 }
 
 function renderInterpretation() {
   const done = tNow >= (timeline?.end ?? 0), box = $('interp-box');
   if (!done) { box.open = false; box.classList.add('waiting'); return; }
   box.classList.remove('waiting');
-  const p = PFT_PRESETS[presetKey];
-  const pre = p.bronchodilator && $('bronchodilator').checked && matchPreset() === presetKey ? simulate({ ...p.settings, ...(p.supine && $('supine').checked ? p.supine : {}) }).report : null;
-  const out = interpret(sim.report, PREDICTED, { pre });
+  const out = interpret(sim.report, PREDICTED, { pre: preReport(), custom: matchPreset() === 'custom' });
   $('interp-steps').innerHTML = out.steps.map(x => `<li><strong>${x.q}</strong><br>${x.a}</li>`).join('');
   $('interp-result').innerHTML = `<strong>${out.pattern}.</strong> ${out.consistent}`;
 }
@@ -201,7 +227,7 @@ function loadPreset(k) {
 
 function exportCsv() {
   const r = sim.report, rows = [['measure', 'actual', 'predicted', 'percent_predicted']];
-  for (const row of ROWS) if (row.length > 1) rows.push([row[1], r[row[0]].toFixed(3), PREDICTED[row[0]].toFixed(3), Math.round(100 * r[row[0]] / PREDICTED[row[0]])]);
+  for (const row of ROWS) if (row.length > 1) rows.push([row[1], r[row[0]].toFixed(3), PREDICTED[row[0]].toFixed(3), NO_PCT.has(row[0]) ? '' : Math.round(100 * r[row[0]] / PREDICTED[row[0]])]);
   rows.push([], ['time_s', 'volume_L', 'flow_Lps', 'phase']);
   sim.expiration.filter((_, i) => i % 5 === 0).forEach(p => rows.push([p.t.toFixed(3), p.v.toFixed(4), p.flow.toFixed(4), 'forced expiration']));
   sim.inspiration.filter((_, i) => i % 5 === 0).forEach(p => rows.push([p.t.toFixed(3), p.v.toFixed(4), (-p.flow).toFixed(4), 'forced inspiration']));
