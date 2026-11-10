@@ -114,3 +114,17 @@ test('no "normal study" when TLC is normal but spirometry or RV is not (D2)', ()
     assert.notEqual(out.consistent.split('.')[0], 'Normal study', JSON.stringify(s));
   }
 });
+
+test('weakness does not read as upper airway obstruction, but a real stenosis in a weak patient still does (PHY-06)', () => {
+  let maxPlateau = 0;
+  for (const m of [0.2, 0.3, 0.4, 0.6]) for (const l of [0.6, 0.8, 1]) for (const c of [0.6, 0.85, 1]) {
+    const r = simulate({ muscleStrength: m, lungCompliance: l, chestWallCompliance: c }).report;
+    maxPlateau = Math.max(maxPlateau, r.plateau);
+    assert.notEqual(interpret(r, PREDICTED).pattern, 'Upper airway obstruction', `weakness ${m}/${l}/${c}`);
+  }
+  assert.ok(maxPlateau < 0.29, `weakness alone stays below the 0.30 plateau guard: ${maxPlateau}`);
+  for (const lim of [1.5, 2, 3]) {
+    const r = simulate({ ...PFT_PRESETS.neuromuscular.settings, upperAirwayLimit: lim }).report;
+    assert.equal(interpret(r, PREDICTED).pattern, 'Upper airway obstruction', `stenosis ${lim} L/s with weakness`);
+  }
+});

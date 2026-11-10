@@ -24,7 +24,10 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   // (a quarter or more of the FVC exhaled near peak flow) and inspiratory flow is low. FEV1/PEF
   // (Empey index, mL per L/min; above 10 is abnormal) is a second check. Students read it from the loop.
   const empey = (r.fev1 * 1000) / (r.pef * 60);
-  const upperAirway = fvc >= 40 && (r.plateau ?? 0) >= 0.25 && empey > 10 && pct(r, p, 'pif') < 80;
+  // Weak muscles also blunt both limbs of the loop, so a borderline flat top with a step-up pattern
+  // (small TLC, high RV) is read as weakness. A clearly flat top (30% or more of FVC near peak flow) is
+  // still called a fixed obstruction: weakness alone does not flatten the loop that much.
+  const upperAirway = fvc >= 40 && (r.plateau ?? 0) >= 0.25 && empey > 10 && pct(r, p, 'pif') < 80 && !(small && stepUp && r.plateau < 0.30);
   const volumesNormal = tlc >= 80 && tlc <= 120 && rv <= 120, dlNormal = !lowDLc;
 
   // 1. Lung volumes
@@ -44,6 +47,7 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   if (upperAirway) loop = 'No. Both limbs are cut off flat: peak expiratory flow is blunted at the very start of exhalation and inspiratory flow is capped too, so the loop is squared off. <span class="extra">(Extra: FEV1/PEF is ' + empey.toFixed(1) + ' mL per L/min; above 10 also suggests it.)</span>';
   else if (obstruction) loop = 'No. The expiratory limb is scooped: flow falls off quickly after the peak and stays low through the rest of the breath.';
   else if (small && !stepUp && ratio > 80) loop = 'No. The loop is tall and narrow: small volume, but flow is normal or high for that volume.';
+  else if (small && stepUp && !obstruction) loop = 'No. The loop is small, with low peak flows in both directions. The peak is blunted too, but the small TLC and high RV point to weak muscles; a fixed tracheal obstruction blunts the loop with normal lung volumes.';
   else if (small || fvc < 80) loop = 'No. The loop is small, with low peak flows in both directions.';
   else loop = 'Yes, normal shape.';
   steps.push({ q: 'Does the flow-volume loop look normal?', a: loop });

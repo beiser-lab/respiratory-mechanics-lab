@@ -46,3 +46,14 @@ test('one breath: Ppl falls, PA goes negative, flow stops at the new volume', ()
   const fib = simulateBreath(BREATH_PRESETS.fibrosis), emph = simulateBreath(BREATH_PRESETS.emphysema);
   assert.ok(fib.work > 1.3 * b.work && emph.work < b.work, 'stiffer lung, more elastic work for the same breath');
 });
+
+test('TLC and RV sit where the combined curve meets the muscle limits, which change with volume', async () => {
+  const m = await import('../dist/model.js');
+  for (const s of [{}, { muscleStrength: 0.5 }, { lungCompliance: 0.47 }, { lungCompliance: 2 }, { chestWallLoad: 5 }]) {
+    const set = { ...m.DEFAULT_SETTINGS, ...s }, a = m.analyze(set);
+    assert.ok(Math.abs(m.systemPressure(a.tlc, set) - m.inspiratoryMusclePressure(a.tlc, set.muscleStrength)) < 1e-6, `TLC on the inspiratory limit ${JSON.stringify(s)}`);
+    if (a.rv > a.lungMinimalVolume + 1e-6) assert.ok(Math.abs(m.systemPressure(a.rv, set) + m.expiratoryMusclePressure(a.rv, set.muscleStrength)) < 1e-6, `RV on the expiratory limit ${JSON.stringify(s)}`);
+  }
+  assert.ok(m.inspiratoryMusclePressure(3) > m.inspiratoryMusclePressure(6), 'inspiratory muscles weaker as the lung fills');
+  assert.ok(m.expiratoryMusclePressure(6) > m.expiratoryMusclePressure(1.5), 'expiratory muscles weaker as the lung empties');
+});
