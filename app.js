@@ -1,8 +1,8 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=15';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, inspiratoryMusclePressure, expiratoryMusclePressure, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=21';
 
 const $ = id => document.getElementById(id);
-const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944' };
-const AX = { pMin: -30, pMax: 50, vMin: 0, vMax: 8 };
+const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944', muscle: '#d22f1e' };
+const AX = { pMin: -30, pMax: 60, vMin: 0, vMax: 8 };
 const V_DRAW_MAX = 7.6; // the classic figure stops near TLC; room for a hyperinflated TLC
 
 const QUESTIONS = {
@@ -11,7 +11,7 @@ const QUESTIONS = {
   fibrosis: ['More recoil, smaller lungs', 'A stiff lung needs more pressure at every volume. Follow the FRC and TLC. Why does TLC fall even though muscle strength is normal?'],
   obesity: ['A load on the outside', 'Mass loading pushes the chest wall curve to the right. Which volume changes most, and why might a patient with obesity have trouble with ERV in particular?'],
   kyphoscoliosis: ['A stiff box', 'The lung is normal, yet FRC, TLC, and ERV all fall and the combined curve is flatter. Use 1/Crs = 1/CL + 1/Ccw to explain why the stiffer of the two parts dominates the system compliance.'],
-  neuromuscular: ['Weak muscles, normal tissues', 'The compliance curves did not move at all. Why do TLC and RV change while FRC stays put? Compare this with the fibrosis pattern.'],
+  neuromuscular: ['Weak muscles, normal tissues', 'The compliance curves did not move. Watch the red muscle curves as you lower strength. Where do they now meet the respiratory system curve? Why does FRC stay put? Compare this with the fibrosis pattern.'],
   custom: ['Your own experiment', 'Predict first, then move the slider. Which volumes depend only on the compliance curves, and which also depend on the muscles?'],
 };
 
@@ -95,7 +95,24 @@ function chart(id) {
     ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.6; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(xa, py); ctx.lineTo(xb, py); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(xb, py); ctx.lineTo(xb - dir * 7, py - 4); ctx.lineTo(xb - dir * 7, py + 4); ctx.closePath(); ctx.fill();
   };
-  return { ctx, line, hline, dot, arrow, X, Y, Yinv, left, right, top, bottom, compact };
+  return { ctx, clip, line, hline, dot, arrow, X, Y, Yinv, left, right, top, bottom, compact };
+}
+
+// Muscle limits, as in the lecture's "Determinants of TLC / RV" figure: the most pressure each muscle
+// group can make at each volume. TLC and RV sit where the combined curve meets them.
+function drawMuscles(g, a) {
+  const m = settings.muscleStrength, seg = (f, v0, v1) => Array.from({ length: 41 }, (_, i) => { const V = v0 + (v1 - v0) * i / 40; return { x: f(V), y: V }; });
+  const insp = seg(V => inspiratoryMusclePressure(V, m), Math.max(a.frc, a.tlc - 2), a.tlc);
+  const exp = seg(V => -expiratoryMusclePressure(V, m), a.rv, Math.min(a.frc, a.rv + 2));
+  const { ctx } = g;
+  g.clip(() => { ctx.strokeStyle = colors.muscle; ctx.lineWidth = 3; ctx.setLineDash([9, 6]); for (const pts of [insp, exp]) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(g.X(p.x), g.Y(p.y)) : ctx.moveTo(g.X(p.x), g.Y(p.y))); ctx.stroke(); } ctx.setLineDash([]); });
+  g.dot(insp[insp.length - 1].x, a.tlc, colors.muscle, 4); g.dot(exp[0].x, a.rv, colors.muscle, 4);
+  ctx.fillStyle = colors.muscle; ctx.font = '600 11px -apple-system, sans-serif';
+  // Labels sit clear of the lines: inspiratory below its line, expiratory above its line.
+  const vis = pts => pts.filter(p => p.x >= AX.pMin && p.x <= AX.pMax);
+  const vi = vis(insp), ve = vis(exp);
+  if (vi.length) { const p = vi[Math.floor(vi.length / 2)]; ctx.textAlign = 'right'; ctx.fillText(g.compact ? 'Muscles' : 'Inspiratory muscles', g.X(p.x) - 6, g.Y(p.y) + 22); }
+  if (ve.length) { const p = ve[Math.floor(ve.length / 2)]; ctx.textAlign = 'left'; ctx.fillText(g.compact ? 'Muscles' : 'Expiratory muscles', Math.max(g.left + 4, g.X(p.x) - 30), g.Y(p.y) - 14); }
 }
 
 const pctVC = (V, a) => Math.round(100 * (V - a.rv) / a.vc);
@@ -108,7 +125,7 @@ function draw() {
     g.line(healthyCurves.chestWall, colors.chestWall, { dashed: true, width: 1.3, alpha: 0.45 });
     g.line(healthyCurves.system, colors.system, { dashed: true, width: 1.3, alpha: 0.45 });
   }
-  if (limits) { g.hline(a.tlc, '#6b6b6b', `TLC ${a.tlc.toFixed(2)}`); g.hline(a.rv, '#6b6b6b', `RV ${a.rv.toFixed(2)}`); }
+  if (limits) { g.hline(a.tlc, '#6b6b6b', `TLC ${a.tlc.toFixed(2)}`); g.hline(a.rv, '#6b6b6b', `RV ${a.rv.toFixed(2)}`); drawMuscles(g, a); }
   g.hline(a.frc, '#4d4d4d', `FRC ${a.frc.toFixed(2)}`, []);
   g.line(c.chestWall, colors.chestWall); g.line(c.lung, colors.lung); g.line(c.system, colors.system, { width: 2.8 });
   // FRC balance, as in the classic figure: the system sits at zero; arrows point to each tissue's recoil.

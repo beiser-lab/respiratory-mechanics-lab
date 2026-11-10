@@ -22,7 +22,7 @@
 // DLCO (Roughton & Forster 1957):  1/DLCO = 1/DM + 1/(theta * Vc), theta proportional to Hb.
 // Hb adjustment (ERS/ATS 2017, adult male): DLCOcorr = DLCO * (10.22 + Hb) / (1.7 * Hb).
 
-import { analyze, lungMinVolume, lungMaxVolume, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=15';
+import { analyze, inspiratoryMusclePressure, expiratoryMusclePressure, lungMinVolume, lungMaxVolume, lungPressure, chestWallPressure, systemPressure, PARAMS, DEFAULT_SETTINGS as STATIC_DEFAULTS } from './model.js?v=21';
 
 export const PFT_DEFAULTS = Object.freeze({
   ...STATIC_DEFAULTS,
@@ -36,8 +36,8 @@ export const PFT_DEFAULTS = Object.freeze({
 
 export const K = Object.freeze({
   Rus0: 2.1, Pt: 0.6, closureFactor: 10, forcedClosureFactor: 7,
-  Rcentral: 3.5, effortTau: 0.05, waveSpeedMax: 10,
-  Rinsp: 6, inspTau: 0.2, rinspAirwayShare: 0.3,
+  Rcentral: 10, effortTau: 0.07, waveSpeedMax: 10,
+  Rinsp: 12.3, inspTau: 0.2, rinspAirwayShare: 0.3,
   tidalFlow: 0.5, rawNormal: 1.4, rawSmallAirwayShare: 0.13,
   endFlow: 0.025, maxExpTime: 15, dt: 0.002,
   // DM/(theta*Vc) = 0.7 at the reference Hb, the assumption behind the ERS/ATS Hb correction.
@@ -76,13 +76,13 @@ export function dynamicFrc(s, relaxedFrc) {
 function expiratoryFlow(V, t, s, statics) {
   const PL = lungPressure(V, s.lungCompliance, PARAMS);
   const smallAirway = PL / rus(V, s);
-  const effort = (1 - Math.exp(-t / K.effortTau)) * (systemPressure(V, s, PARAMS) + PARAMS.expMax * s.muscleStrength) / K.Rcentral;
+  const effort = (1 - Math.exp(-t / K.effortTau)) * (systemPressure(V, s, PARAMS) + expiratoryMusclePressure(V, s.muscleStrength)) / K.Rcentral;
   const limits = [smallAirway, effort, K.waveSpeedMax];
   if (s.upperAirwayLimit > 0) limits.push(s.upperAirwayLimit);
   return V <= statics.forcedEnd ? 0 : softMin(limits);
 }
 function inspiratoryFlow(V, t, s) {
-  const drive = PARAMS.inspMax * s.muscleStrength - systemPressure(V, s, PARAMS);
+  const drive = inspiratoryMusclePressure(V, s.muscleStrength) - systemPressure(V, s, PARAMS);
   const rinsp = K.Rinsp * (1 + K.rinspAirwayShare * (s.airwayResistance - 1));
   const limits = [(1 - Math.exp(-t / K.inspTau)) * drive / rinsp];
   if (s.upperAirwayLimit > 0) limits.push(s.upperAirwayLimit);
@@ -151,12 +151,12 @@ export function simulate(settings = {}) {
 const preset = (label, o, extra = {}) => ({ label, settings: { ...PFT_DEFAULTS, ...o }, ...extra });
 export const PFT_PRESETS = {
   normal: preset('Healthy adult', {}),
-  emphysema: preset('Emphysema (Small Group 1 case: 72-year-old former smoker)', { lungCompliance: 2.5, airwayCollapsibility: 60, airwayResistance: 2, membrane: 0.5, capillaryVolume: 0.7 }, { bronchodilator: { airwayResistance: 1.7 } }),
+  emphysema: preset('Emphysema (Small Group 1 case: 72-year-old former smoker)', { lungCompliance: 2.75, airwayCollapsibility: 45, airwayResistance: 1.5, membrane: 0.5, capillaryVolume: 0.7 }, { bronchodilator: { airwayResistance: 1.3 } }),
   asthma: preset('Asthma, during an exacerbation', { lungCompliance: 1.25, airwayResistance: 3, airwayCollapsibility: 35, capillaryVolume: 1.2 }, { bronchodilator: { airwayResistance: 1, airwayCollapsibility: 1 } }),
-  ild: preset('Interstitial lung disease (pulmonary fibrosis)', { lungCompliance: 0.35, membrane: 0.45, capillaryVolume: 0.8 }),
-  obesity: preset('Obesity', { chestWallLoad: 6, chestWallCompliance: 0.4, capillaryVolume: 1.1 }),
+  ild: preset('Interstitial lung disease (pulmonary fibrosis)', { lungCompliance: 0.28, membrane: 0.45, capillaryVolume: 0.8 }),
+  obesity: preset('Obesity', { chestWallLoad: 10, chestWallCompliance: 0.275, capillaryVolume: 1.1 }),
   // Chronic weakness also stiffens the lung and chest wall a little (Gibson 1977; Estenne 1983).
-  neuromuscular: preset('Respiratory muscle weakness (Small Group 4 case)', { muscleStrength: 0.48, lungCompliance: 0.82, chestWallCompliance: 0.82 }, { supine: { muscleStrength: 0.38, chestWallLoad: 1 } }),
+  neuromuscular: preset('Respiratory muscle weakness (Small Group 4 case)', { muscleStrength: 0.3, lungCompliance: 0.8, chestWallCompliance: 0.85 }, { supine: { muscleStrength: 0.2, chestWallLoad: 1 } }),
   upperAirway: preset('Fixed upper airway obstruction (e.g., tracheal stenosis)', { upperAirwayLimit: 3 }),
   anemia: preset('Anemia (Hb 8 g/dL), lungs normal', { hemoglobin: 8 }),
 };

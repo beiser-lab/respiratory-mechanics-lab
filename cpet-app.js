@@ -1,4 +1,4 @@
-import { simulate, interpretCPET, CPET_PRESETS, CPET_DEFAULTS, predicted } from './cpet-model.js?v=15';
+import { simulate, interpretCPET, CPET_PRESETS, CPET_DEFAULTS, predicted } from './cpet-model.js?v=21';
 
 const $ = id => document.getElementById(id);
 const colors = { o2: '#800000', co2: '#155f83', hr: '#a65e00', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', work: 'rgba(128,128,128,0.10)' };

@@ -18,7 +18,7 @@ export const NORMAL = Object.freeze({
   // Lung size: a compliance multiplier s also scales the lung's volume axis by s^lungSizeExp, so an
   // emphysematous lung is bigger at every pressure (TLC rises above 120%) and a fibrotic lung smaller
   // (TLC and RV fall). With s = 1 the healthy curve is unchanged.
-  lungSizeExp: 0.2,
+  lungSizeExp: 0.25,
   // Chest wall (logistic): V = Vlow + (Vhigh - Vlow) / (1 + exp(-(Pcw - Pc) / b)).
   // Fit so the chest wall rests at 72% VC (4.75 L; Rahn et al. 1946), recoils outward
   // -5 cmH2O at FRC (3.0 L), and -14 cmH2O at RV (1.5 L), leaving room for RV to fall when the
@@ -28,10 +28,19 @@ export const NORMAL = Object.freeze({
   cwVhigh: 8.5,
   cwPc: 0.1816,     // cmH2O
   cwB: 4.7798,      // cmH2O
-  // Maximal relaxation-pressure equivalents of the respiratory muscles at 100% strength.
-  // Calibrated so the healthy model gives TLC 6.0 L and RV 1.5 L.
+  // Respiratory muscles: the most pressure each group can add, on the same axis as the relaxation
+  // curves (as in the lecture's "Determinants of TLC / RV" figure). Inspiratory capacity falls as the
+  // lung fills (the diaphragm flattens and shortens); expiratory capacity falls as the lung empties.
+  // TLC is where the system curve meets the inspiratory limit, RV where it meets the expiratory limit.
+  // inspMax and expMax are the values at TLC and RV, calibrated so the healthy model gives TLC 6.0 L
+  // and RV 1.5 L. The slopes (cmH2O per L) give maximal mouth pressures near -110 at RV and +200 at TLC,
+  // close to Black & Hyatt 1969 adult means.
   inspMax: null,
   expMax: null,
+  inspSlope: 13,
+  expSlope: 33,
+  muscleRefTlc: 6.0,
+  muscleRefRv: 1.5,
 });
 
 export const DEFAULT_SETTINGS = Object.freeze({ lungCompliance: 1, chestWallCompliance: 1, chestWallLoad: 0, muscleStrength: 1 });
@@ -99,18 +108,31 @@ function slopeCompliance(pressureOfV, V, h = 1e-4) {
 
 function calibrate() {
   const base = { ...NORMAL };
-  base.inspMax = systemPressure(6.0, DEFAULT_SETTINGS, base);
-  base.expMax = -systemPressure(1.5, DEFAULT_SETTINGS, base);
+  base.inspMax = systemPressure(base.muscleRefTlc, DEFAULT_SETTINGS, base);
+  base.expMax = -systemPressure(base.muscleRefRv, DEFAULT_SETTINGS, base);
   return Object.freeze(base);
 }
 export const PARAMS = calibrate();
 
+// Maximal muscle pressure at volume V (magnitudes, cmH2O), scaled by strength.
+export const inspiratoryMusclePressure = (V, strength = 1, p = PARAMS) => Math.max(0, strength * (p.inspMax + p.inspSlope * (p.muscleRefTlc - V)));
+export const expiratoryMusclePressure = (V, strength = 1, p = PARAMS) => Math.max(0, strength * (p.expMax + p.expSlope * (V - p.muscleRefRv)));
+// Volume where the system's relaxation pressure meets a muscle limit (Prs(V) - limit(V) rises with V).
+function volumeAtMuscleLimit(limit, settings, p) {
+  let lo = p.cwVlow + 1e-9, hi = Math.min(lungMaxVolume(settings.lungCompliance ?? 1, p), p.cwVhigh) - 1e-9;
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    if (systemPressure(mid, settings, p) - limit(mid) < 0) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 export function analyze(settings = DEFAULT_SETTINGS, p = PARAMS) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const frc = volumeAtSystemPressure(0, s, p);
-  const tlc = volumeAtSystemPressure(p.inspMax * s.muscleStrength, s, p);
+  const tlc = volumeAtMuscleLimit(V => inspiratoryMusclePressure(V, s.muscleStrength, p), s, p);
   // The lung cannot be emptied below its minimal volume, however strong the expiratory muscles.
-  const rv = Math.max(volumeAtSystemPressure(-p.expMax * s.muscleStrength, s, p), lungMinVolume(s.lungCompliance, p));
+  const rv = Math.max(volumeAtMuscleLimit(V => -expiratoryMusclePressure(V, s.muscleStrength, p), s, p), lungMinVolume(s.lungCompliance, p));
   const PL = lungPressure(frc, s.lungCompliance, p);
   const Pcw = chestWallPressure(frc, s.chestWallCompliance, p, s.chestWallLoad);
   const CL = slopeCompliance(V => lungPressure(V, s.lungCompliance, p), frc);
@@ -185,11 +207,11 @@ export function simulateBreath(settings = DEFAULT_SETTINGS, p = PARAMS, b = BREA
 const preset = (label, o) => ({ label, ...DEFAULT_SETTINGS, ...o });
 export const PRESETS = {
   normal: preset('Healthy adult', {}),
-  emphysema: preset('Emphysema: lung compliance ↑', { lungCompliance: 2 }),
-  fibrosis: preset('Pulmonary fibrosis: lung compliance ↓', { lungCompliance: 0.5 }),
+  emphysema: preset('Emphysema: lung compliance ↑', { lungCompliance: 2.5 }),
+  fibrosis: preset('Pulmonary fibrosis: lung compliance ↓', { lungCompliance: 0.44 }),
   obesity: preset('Obesity: inward load on chest wall', { chestWallLoad: 5 }),
   kyphoscoliosis: preset('Kyphoscoliosis: chest wall compliance ↓', { chestWallCompliance: 0.6 }),
-  neuromuscular: preset('Respiratory muscle weakness', { muscleStrength: 0.5 }),
+  neuromuscular: preset('Respiratory muscle weakness', { muscleStrength: 0.25 }),
 };
 
 export { clamp };
