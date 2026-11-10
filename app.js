@@ -1,4 +1,4 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, inspiratoryMusclePressure, expiratoryMusclePressure, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=21';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, inspiratoryMusclePressure, expiratoryMusclePressure, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=22';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944', muscle: '#d22f1e' };
@@ -236,7 +236,7 @@ function exportCsv() {
   rows.push([], ['settings', JSON.stringify(settings).replaceAll(',', ';')], ['FRC_L', a.frc.toFixed(3)], ['TLC_L', a.tlc.toFixed(3)], ['RV_L', a.rv.toFixed(3)]);
   const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
   const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'respiratory-mechanics.csv' });
-  link.click(); URL.revokeObjectURL(link.href);
+  document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 // ---------- wiring ----------
