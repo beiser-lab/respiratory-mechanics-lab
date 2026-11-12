@@ -125,7 +125,10 @@ function drawFlowVolume(sm, tl) {
   if (tNow >= tl.end) { g.text('TLC', absolute ? tl0 : 0, 0, { align: 'center', dy: 14, bold: true }); const trapped = ev - sm.report.rv > 0.02; g.text(absolute ? (trapped ? 'End of FVC' : 'RV') : 'FVC', absolute ? ev : tl0 - ev, 0, { align: 'center', dy: 14, bold: true }); if (absolute && trapped) g.text('RV', sm.report.rv, 0, { align: 'center', dy: 26, color: '#737373' }); }
 }
 function drawVolumeTime(sm, tl) {
-  const tMax = 14, g = chart('vt', { xMin: 0, xMax: tMax, yMin: 0, yMax: 5.5, xLabel: 'Time (s)', yLabel: 'Volume exhaled (L)', xTicks: [0, 1, 2, 4, 6, 8, 10, 12, 14], yTicks: [0, 1, 2, 3, 4, 5] });
+  // 8 s holds every preset (emphysema, the longest, exhales for about 7 s); the axis widens only for custom
+  // patients who exhale longer, up to the 15 s end of test.
+  const tMax = Math.max(8, Math.ceil(sm.report.expTime / 2) * 2), step = tMax > 8 ? 2 : 1;
+  const g = chart('vt', { xMin: 0, xMax: tMax, yMin: 0, yMax: 5.5, xLabel: 'Time (s)', yLabel: 'Volume exhaled (L)', xTicks: Array.from({ length: tMax / step + 1 }, (_, i) => i * step), yTicks: [0, 1, 2, 3, 4, 5] });
   const series = s => s.expiration.filter((_, i) => i % 5 === 0).map(p => ({ x: p.t, y: s.report.tlc - p.v }));
   if ($('overlay').checked) g.line(series(healthySim), colors.healthy, { dashed: true, width: 1.3, alpha: 0.8 });
   const elapsed = tNow >= tl.end ? Infinity : tNow - tl.tExp;
