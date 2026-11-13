@@ -1,4 +1,4 @@
-import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, inspiratoryMusclePressure, expiratoryMusclePressure, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=22';
+import { analyze, curves, probe, PRESETS, DEFAULT_SETTINGS, PARAMS, inspiratoryMusclePressure, expiratoryMusclePressure, lungPressure, chestWallPressure, systemPressure, simulateBreath, BREATH } from './model.js?v=24';
 
 const $ = id => document.getElementById(id);
 const colors = { system: '#800000', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666', ink: '#193944', muscle: '#d22f1e' };
