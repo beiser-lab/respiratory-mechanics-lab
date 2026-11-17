@@ -1,5 +1,5 @@
-import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=24';
-import { interpret } from './pft-interpret.js?v=24';
+import { simulate, PFT_PRESETS, PFT_DEFAULTS, PREDICTED } from './pft-model.js?v=27';
+import { interpret } from './pft-interpret.js?v=27';
 
 const $ = id => document.getElementById(id);
 const colors = { patient: '#800000', healthy: '#4d4d4d', lung: '#a65e00', chestWall: '#155f83', grid: '#eaf0f2', axis: '#aebdc4', text: '#666666' };
@@ -11,7 +11,7 @@ const QUESTIONS = {
   ild: ['Small, stiff lungs', 'TLC and FVC fall (RV only a little), but FEV1/FVC is normal or high. Use the flow-volume loop to explain why. Tick \u201cFlow-volume loop on absolute lung volume\u201d and compare flow at the same lung volume: is it higher or lower than normal? What does the low DLCO add?'],
   obesity: ['A load on the chest wall', 'TLC, FRC, and RV all fall, RV only a little. Of TLC, FRC, RV, and ERV, which falls the most as percent predicted, and why? Compare ERV here with the other restrictive patients. Why is DLCO normal?'],
   neuromuscular: ['Small Group 4: weak muscles', 'Compare TLC, FRC, and RV as percent predicted. Why is TLC low and RV high while FRC stays near normal (the step-up pattern)? Now check tested supine. What happens to TLC, RV, and the flows, and why?'],
-  upperAirway: ['The next room over', 'Both limbs of the flow-volume loop are cut off flat. Where along the airway must the obstruction be for flow to be capped in both directions? Why is DLCO normal?'],
+  upperAirway: ['The next room over', 'On exam he has stridor, a harsh noise heard in both inspiration and expiration, rather than the expiratory wheeze of asthma. Both limbs of the flow-volume loop are cut off flat. Where along the airway must the obstruction be for flow to be capped in both directions? Why is DLCO normal?'],
   anemia: ['Normal lungs, low DLCO', 'Spirometry and lung volumes are normal. Why is the uncorrected DLCO low, and why does the hemoglobin-corrected value come back to normal?'],
   custom: ['Your own patient', 'Predict the report before you look: which numbers should move, and in which direction?'],
 };
@@ -218,7 +218,8 @@ function renderInterpretation() {
     return;
   }
   box.classList.remove('waiting'); summary.removeAttribute('aria-disabled'); cta.textContent = CTA;
-  const out = interpret(sim.report, PREDICTED, { pre: preReport(), custom: matchPreset() === 'custom' });
+  const P = PFT_PRESETS[presetKey], supine = P.supine && $('supine').checked && matchPreset() === presetKey;
+  const out = interpret(sim.report, PREDICTED, { pre: preReport(), custom: matchPreset() === 'custom', upright: supine ? simulate(P.settings).report : null });
   // Text equivalents for the charts (QA-04). The loop shape comes from the same rules as step 3.
   const r = sim.report, shape = out.steps[2].a.replace(/<[^>]+>.*$/s, '').replace(/^(No\.|Yes,)\s*/, '').replace(/^./, c => c.toUpperCase());
   $('fv').setAttribute('aria-label', `Flow-volume loop. Peak expiratory flow ${r.pef.toFixed(1)} L/s, peak inspiratory flow ${r.pif.toFixed(1)} L/s, FVC ${r.fvc.toFixed(2)} L. ${shape}`);

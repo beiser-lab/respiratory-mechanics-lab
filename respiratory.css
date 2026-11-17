@@ -1,4 +1,4 @@
-/* Additions for the Respiratory Mechanics Lab. Base styles are shared with Circulation Lab. */
+/* Additions for the Respiratory Physiology Lab. Base styles are shared with Circulation Lab. */
 .lab-tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .tab{font-size:11px;font-weight:600;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:white;color:#4d4d4d}
 .tab.active{background:var(--accent);border-color:var(--accent);color:white}
