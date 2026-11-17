@@ -1,4 +1,4 @@
-# Respiratory Mechanics Lab
+# Respiratory Physiology Lab
 
 Browser-based pulmonary physiology teaching model for MEDC 30504 (Tissues, Cells & Organ Physiology), Pritzker School of Medicine. Open the published website; no installation or GitHub account is required.
 

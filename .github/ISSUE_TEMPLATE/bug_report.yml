@@ -4,7 +4,7 @@ title: "[Bug]: "
 body:
   - type: markdown
     attributes:
-      value: "Thanks for helping improve Respiratory Mechanics Lab. This report will be public. Please check existing issues before submitting."
+      value: "Thanks for helping improve Respiratory Physiology Lab. This report will be public. Please check existing issues before submitting."
   - type: textarea
     id: problem
     attributes:

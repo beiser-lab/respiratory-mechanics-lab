@@ -13,7 +13,7 @@ const pct = (r, p, k) => Math.round(100 * r[k] / p[k]);
 const f0 = x => Math.round(x);
 const EXTRA = ' <span class="extra">(beyond the course flowchart)</span>';
 
-export function interpret(r, p, { pre = null, custom = false } = {}) {
+export function interpret(r, p, { pre = null, custom = false, upright = null } = {}) {
   const steps = [];
   const ratio = 100 * r.ratio, tlc = pct(r, p, 'tlc'), rv = pct(r, p, 'rv'), frc = pct(r, p, 'frc'), erv = pct(r, p, 'erv');
   const fev1 = pct(r, p, 'fev1'), fvc = pct(r, p, 'fvc'), dl = pct(r, p, 'dlco'), dlc = pct(r, p, 'dlcoCorrected');
@@ -42,7 +42,7 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   steps.push({ q: 'Look at lung volumes: big lungs or small lungs? (TLC below 80% is small; above 120% is big)', a: vol });
 
   // 2. FEV1/FVC
-  steps.push({ q: 'Is there obstruction? (FEV1/FVC below 70%)', a: `FEV1/FVC ${f0(ratio)}%: ${obstruction ? 'yes, obstruction' : 'no'}. FEV1 ${f0(fev1)}% and FVC ${f0(fvc)}% of predicted.` });
+  steps.push({ q: 'Is there obstruction? (FEV1/FVC below 70%)', a: `FEV1/FVC ${f0(ratio)}%: ${obstruction ? (upperAirway ? 'below 70%, but look at the loop (step 3) before calling this asthma or COPD' : 'yes, obstruction') : 'no'}. FEV1 ${f0(fev1)}% and FVC ${f0(fvc)}% of predicted.` });
 
   // 3. Loop shape, asked every time
   let loop;
@@ -73,9 +73,9 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
   } else if (upperAirway) {
     pattern = 'Upper airway obstruction';
     consistent = (volumesNormal && dlNormal
-      ? 'A squared-off loop with normal lung volumes and DLCO points to a fixed obstruction of the trachea (for example, tracheal stenosis).'
-      : 'A squared-off loop points to a fixed obstruction of the trachea (for example, tracheal stenosis). The lung volumes and DLCO are not normal, so there is a second process as well; read them as you would without the stenosis.')
-      + ' The trachea becomes the flow-limiting segment at the start of exhalation, where flow is normally highest. FEV1/FVC may also be low, but the loop shape, not the ratio, gives it away.';
+      ? 'A squared-off loop with normal lung volumes and DLCO points to a fixed obstruction of the central airway, the larynx or trachea (for example, tracheal stenosis after intubation).'
+      : 'A squared-off loop points to a fixed obstruction of the central airway, the larynx or trachea (for example, tracheal stenosis). The lung volumes and DLCO are not normal, so there is a second process as well; read them as you would without the stenosis.')
+      + ' The narrowed segment becomes the flow-limiting segment at the start of exhalation, where flow is normally highest. FEV1/FVC may also be low, but the loop shape, not the ratio, gives it away. It also sounds different from asthma at the bedside: a fixed central narrowing gives stridor, a single harsh note heard in both inspiration and expiration, while asthma gives wheezes that are mostly expiratory.';
   } else if (obstruction || (pre && 100 * pre.ratio < 70)) {
     if (small) { pattern = 'Mixed obstruction and restriction'; consistent = 'Obstruction with small lungs. Look for two processes, for example COPD with obesity or fibrosis.' + EXTRA; }
     else if (pre && reversible) {
@@ -107,6 +107,12 @@ export function interpret(r, p, { pre = null, custom = false } = {}) {
     else if (lowDLc) consistent = 'Normal spirometry and lung volumes with a low DLCO: think of the pulmonary circulation (pulmonary vascular disease, emboli) or early parenchymal disease.' + EXTRA;
     else if (erv < 70 && frc < 80) { pattern = 'Normal spirometry, low FRC and ERV'; consistent = 'Spirometry and TLC are normal, but FRC and ERV are low: the pattern of obesity before TLC falls.' + EXTRA; }
     else consistent = 'Normal study. If symptoms still suggest asthma, the next test is bronchoprovocation (methacholine challenge).';
+  }
+  // Supine testing in weakness (Small Group 4): say why it is worse.
+  if (upright && !custom) {
+    const fall = 100 * (upright.fvc - r.fvc) / upright.fvc;
+    consistent = consistent.replace(' Supine testing makes it worse.', '');
+    consistent += ` Tested supine, FVC fell from ${upright.fvc.toFixed(2)} to ${r.fvc.toFixed(2)} L (${f0(fall)}%). Upright, gravity pulls the abdominal contents down and helps the diaphragm descend. Lying flat, the abdominal contents push the diaphragm up into the chest, and a weak diaphragm cannot push them back, so TLC and the vital capacity fall further and RV rises. <span class="extra">(Beyond the course: a fall of 15% or more from sitting to supine points to weakness of both sides of the diaphragm; Brault 2021.)</span>`;
   }
   if (custom) consistent += ' <span class="extra">Custom patient: these rules assume that lung recoil, airways, and DLCO change together as they do in real diseases. Moving one slider on its own may not match any one disease.</span>';
   return { steps, pattern, consistent };
