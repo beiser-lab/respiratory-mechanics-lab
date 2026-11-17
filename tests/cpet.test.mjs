@@ -23,19 +23,34 @@ test('Fick and ventilation equations hold along the test', () => {
   const pk = r.peak; assert.ok(pk.vco2 > pk.vo2, 'VCO2 exceeds VO2 above AT (buffering)');
 });
 
-test('each patient shows its limitation', () => {
+test('each patient shows its limitation (course reading cutoffs)', () => {
   const pat = k => interpretCPET(run(k)).pattern;
   assert.equal(pat('normal'), 'Normal exercise capacity');
   assert.equal(pat('athlete'), 'Normal, high fitness');
-  assert.equal(pat('deconditioned'), 'Circulatory limitation');
+  assert.equal(pat('poorEffort'), 'Submaximal test');
+  assert.equal(pat('deconditioned'), 'Low VO2max with a normal anaerobic threshold');
   assert.equal(pat('heartFailure'), 'Circulatory (cardiac) limitation');
-  assert.equal(pat('copd'), 'Ventilatory limitation');
-  assert.equal(pat('ild'), 'Ventilatory limitation');
+  assert.equal(pat('copd'), 'Respiratory limited');
+  assert.equal(pat('ild'), 'Respiratory limited');
   assert.equal(pat('pulmVascular'), 'Circulatory limitation with abnormal gas exchange');
   assert.equal(pat('anemia'), 'Circulatory limitation: low O2 content');
   assert.equal(pat('copdHf'), 'Both heart and lungs at their limits');
-  const c = run('copd').summary; assert.ok(c.breathingReserve < 15 && c.heartRateReserve > 30, 'COPD: no breathing reserve, heart rate to spare');
-  const i = run('ild'); assert.ok(i.summary.spo2Drop >= 4 && i.peak.rr > 45, 'ILD: desaturation, rapid shallow breathing');
+  assert.match(interpretCPET(run('copd')).consistent, /COPD/); assert.match(interpretCPET(run('ild')).consistent, /interstitial/);
+  const c = run('copd').summary; assert.ok(c.breathingReserve < 20 && c.heartRateReserve > 30 && c.rerPeak < 1.1, 'COPD: no respiratory reserve, heart rate to spare, low peak R');
+  const i = run('ild'); assert.ok(i.summary.spo2Drop >= 4 && i.peak.rr > 45 && i.summary.veVco2AtAT > 34, 'ILD: desaturation, rapid shallow breathing, high VE/VCO2');
+  const d = run('deconditioned').summary; assert.ok(d.atPctPred >= 40 && d.vo2PeakPct < 85, 'deconditioning: low VO2max, normal AT (reading flowchart)');
+  const p = run('poorEffort').summary; assert.ok(p.rerPeak < 1.1 && p.hrPeakPct < 85 && p.breathingReserve > 30, 'poor effort: low R, heart rate and respiratory reserve left');
+  const h = simulate().summary; assert.ok(h.breathingReserve >= 30, `healthy respiratory reserve at least 30%: ${h.breathingReserve}`);
+  for (const k of Object.keys(CPET_PRESETS)) if (k !== 'poorEffort') { const m = run(k).summary.rampMinutes; assert.ok(m >= 8 && m <= 12, `${k} ramp lasts 8-12 min: ${m}`); }
+});
+
+test('the final read checks heart rate and gas exchange before naming a pattern (PHY-01 to 03)', () => {
+  const read = o => interpretCPET(simulate(o));
+  assert.doesNotMatch(read({ ...CPET_PRESETS.athlete.settings, fev1: 3.2 }).consistent, /heart rate to spare/, 'fit man with no heart rate reserve is not COPD');
+  assert.equal(read({ desaturation: 10 }).pattern, 'Normal VO2max, abnormal gas exchange');
+  assert.equal(read({ heartRateMax: 0.7 }).pattern, 'Heart rate did not rise normally');
+  assert.equal(read({ strokeVolume: 0.3, heartRateMax: 0.6, hemoglobin: 6, fitness: 0.6, desaturation: 15 }).pattern, 'Too little capacity to read');
+  const z = simulate({ effort: 0.4 }); assert.ok(z.peak.work > 0 && interpretCPET(z).pattern === 'Submaximal test', 'lowest effort still pedals and reads as submaximal');
 });
 
 test('a fast ramp lowers peak VO2 relative to peak work (O2 kinetics)', () => {
