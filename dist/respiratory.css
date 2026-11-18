@@ -47,3 +47,4 @@ footer{color:#666666}.metric-unit{color:#666666}
 @media(max-width:700px){.intro{flex-direction:column;align-items:flex-start}.lab-tabs{justify-content:flex-start}.report th,.report td{padding:5px 3px}.report table{font-size:11px}.report thead th{font-size:10px}.legend{font-size:11px}}
 /* Phones: show each patient's question, just below the patient picker (all pages) */
 @media(max-width:700px){aside .notes{display:block;order:1;margin:14px 0}aside>.experiment:nth-child(2){order:2}}
+.brand p.ai-note{margin-top:3px;font-size:11px;color:#800000;font-weight:600}.brand p.ai-note a{color:inherit;text-underline-offset:2px}

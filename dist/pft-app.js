@@ -247,7 +247,7 @@ function draw() {
 }
 function frame(now) {
   if (!playing) return;
-  tNow += (now - lastFrame) / 1000 * 2; lastFrame = now; // 2x real time
+  tNow += Math.max(0, now - lastFrame) / 1000 * 2; lastFrame = Math.max(now, lastFrame); // 2x real time; the first frame can be timestamped before the click
   if (tNow >= timeline.end) { playing = false; tNow = Infinity; $('run').textContent = '▶ Run the test'; }
   drawTracing(timeline, sim.report); drawFlowVolume(sim, timeline); drawVolumeTime(sim, timeline); renderReport(sim.report); renderInterpretation();
   if (playing) requestAnimationFrame(frame);
