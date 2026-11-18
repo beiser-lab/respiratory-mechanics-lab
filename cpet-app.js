@@ -50,7 +50,7 @@ function chart(id, { xMin, xMax, yMin, yMax, xLabel, yLabel, xTicks, yTicks, y2 
     pts.forEach((p, i) => i ? ctx.lineTo(X(p.x), YY(p.y)) : ctx.moveTo(X(p.x), YY(p.y))); ctx.stroke(); });
   const vline = (x, label) => clip(() => { ctx.strokeStyle = '#737373'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(X(x), top); ctx.lineTo(X(x), bottom); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#4d4d4d'; ctx.font = `600 ${fs}px -apple-system, sans-serif`; ctx.textAlign = 'left';
     labelRow = X(x) - lastLabelX < 46 ? labelRow + 1 : 0; lastLabelX = X(x); ctx.fillText(label, X(x) + 4, top + 11 + 13 * labelRow); }); // stagger labels that would touch
-  const fill = (pts, color) => clip(() => { ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(X(pts[0].x), Y(yMin)); pts.forEach(p => ctx.lineTo(X(p.x), Y(p.y))); ctx.lineTo(X(pts[pts.length - 1].x), Y(yMin)); ctx.closePath(); ctx.fill(); });
+  const fill = (pts, color) => pts.length && clip(() => { ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(X(pts[0].x), Y(yMin)); pts.forEach(p => ctx.lineTo(X(p.x), Y(p.y))); ctx.lineTo(X(pts[pts.length - 1].x), Y(yMin)); ctx.closePath(); ctx.fill(); });
   return { ctx, X, Y, Y2, line, vline, fill, clip, left, right, top, bottom };
 }
 
@@ -144,7 +144,7 @@ function update() { sim = simulate(settings); if (!playing) tNow = Infinity; ren
 
 function frame(now) {
   if (!playing) return;
-  tNow += (now - lastFrame) / 1000 * SPEED; lastFrame = now;
+  tNow += Math.max(0, now - lastFrame) / 1000 * SPEED; lastFrame = Math.max(now, lastFrame); // the first frame's timestamp can predate the click
   if (tNow >= sim.series[sim.series.length - 1].t) { playing = false; tNow = Infinity; $('run').textContent = '▶ Run the test'; }
   render(); if (playing) requestAnimationFrame(frame);
 }
